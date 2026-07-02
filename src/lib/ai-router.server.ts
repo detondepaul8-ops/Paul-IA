@@ -24,10 +24,18 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
   {
     type: 'image',
     patterns: [
-      /\b(génère|crée|dessine|fais|fabrique)\s+(une\s+)?(image|illustration|photo|dessin|logo|bannière|icône|affiche|miniature|thumbnail)/i,
-      /\b(image|illustration|photo|dessin)\s+(de|d'|sur|pour)/i,
-      /\b(generate|create|draw|make|design)\s+(an?\s+)?(image|illustration|photo|drawing|logo|banner|icon|poster|thumbnail)/i,
-      /\b(visuel|graphique|pictogramme|infographie)\b/i,
+      // Explicit "verb + image keyword"
+      /\b(génère|crée|dessine|fais|fabrique|produis|trace)\s+(une?\s+|la\s+|un\s+)?(image|illustration|photo|dessin|logo|bannière|icône|affiche|miniature|thumbnail|peinture|portrait|caricature|schéma)/i,
+      // "dessine-moi / fais-moi" + any object
+      /\b(dessine|fais|crée|génère)\s*-\s*(moi|nous)\b/i,
+      // "image/illustration/photo of/for"
+      /\b(image|illustration|photo|dessin|visuel)\s+(de|d'|sur|pour|avec|qui)/i,
+      // English: "verb + image keyword"
+      /\b(generate|create|draw|make|design|render|paint)\s+(an?\s+)?(image|illustration|photo|drawing|logo|banner|icon|poster|thumbnail|picture|painting|portrait)/i,
+      // Visual medium keywords
+      /\b(visuel|graphique|pictogramme|infographie|thumbnail|miniature)\b/i,
+      // "génère/crée un/une" + common drawable nouns (high confidence for image)
+      /\b(génère|crée|dessine|fais|fabrique|produis|trace)\s+(un\s+|une\s+|le\s+|la\s+)?(chat|chien|oiseau|paysage|montagne|forêt|océan|soleil|lune|étoile|personnage|robot|dragon|maison|ville|fleur|arbre|voiture|avion|bateau|objet|scène|tableau|portrait|affiche|bannière|logo|icône|mascotte|fond\s+d'écran|wallpaper)/i,
     ],
     priority: 5,
   },
@@ -87,25 +95,30 @@ function classifyByPatterns(input: string): RouteResult | null {
 export async function classifyIntent(userMessage: string): Promise<RouteResult> {
   // Step 1: Fast pattern matching
   const patternResult = classifyByPatterns(userMessage);
-  if (patternResult && patternResult.confidence >= 5) {
+  if (patternResult) {
     return patternResult;
   }
 
   // Step 2: LLM classification
   try {
-    const classificationPrompt = `Tu es un classificateur d'intention. Analyse le message et classe-le dans UNE catégorie:
+    const classificationPrompt = `Tu es un classificateur d'intention ULTRA PRÉCIS. Analyse le message et classe-le dans UNE catégorie:
 
-- "chat": Discussion, questions, explications
-- "code": Génération de code, programmation, debug
-- "content": Rédaction, marketing, articles, emails
-- "image": Génération d'images, illustrations
-- "video": Génération de vidéos, animations
-- "audio": Voix, narration, TTS, musique
-- "project": Projet complet, MVP, architecture
+- "chat": Discussion, questions générales, explications, salutations
+- "code": Génération de code, programmation, debug, développement web
+- "content": Rédaction d'articles, marketing, emails, texte purement écrit
+- "image": TOUTE demande de créer, générer, dessiner, produire une image/illustration/photo/visuel/dessin. Aussi toute DESCRIPTION VISUELLE d'une scène (ex: "un chat blanc sur une pelouse" = image)
+- "video": Génération de vidéos, animations, clips
+- "audio": Voix, narration, TTS, musique, son
+- "project": Projet complet, MVP, architecture système
 
-Règle CRITIQUE: si la demande parle de vidéo/film/animation → "video". Si la demande parle de voix/audio/son → "audio".
+Règles CRITIQUES:
+1. Si l'utilisateur DÉCRIT une scène visuelle, un objet, un personnage, un paysage → "image"
+2. Si l'utilisateur dit "génère", "crée", "dessine", "fais" + un objet/animal/personnage → "image" (PAS "chat" !)
+3. Si la demande parle de vidéo/film/animation → "video"
+4. Si la demande parle de voix/audio/son → "audio"
+5. "chat" ne signifie PAS "chat" (l'animal) — un chat (animal) est une demande d'image
 
-JSON: {"taskType":"...","confidence":0.0-1.0,"reason":"..."}
+JSON UNIQUEMENT: {"taskType":"...","confidence":0.0-1.0,"reason":"..."}
 
 Message: "${userMessage}"`;
 

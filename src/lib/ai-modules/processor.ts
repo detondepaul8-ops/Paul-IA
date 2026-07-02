@@ -57,14 +57,6 @@ async function processTextModule(
     { role: 'user', content: userMessage },
   ];
 
-  // IMPORTANT: instruct text modules to NEVER claim media generation
-  const mediaGuard = '\n\nRègle critique : tu ne peux PAS générer d\'images, de vidéos ou d\'audio. Si l\'utilisateur demande un média, dis-lui que Paul IA le fera via le module dédié.';
-
-  messages[messages.length - 1] = {
-    role: 'user',
-    content: userMessage + mediaGuard,
-  };
-
   const content = await chatCompletion(messages, {
     temperature: taskType === 'code' ? 0.3 : 0.7,
     maxTokens: taskType === 'project' ? 8192 : 4096,
@@ -74,11 +66,11 @@ async function processTextModule(
 }
 
 /**
- * Build system prompt with media guardrails.
+ * Build system prompt with media guardrails in the SYSTEM message (not user message).
  */
 function buildSystemPrompt(taskType: TaskType): string {
   const base = MODULE_SYSTEM_PROMPTS[taskType] || MODULE_SYSTEM_PROMPTS.chat;
-  return base + '\n\nRègles absolues :\n- Tu ne génères JAMAIS d\'images, vidéos ou audio directement.\n- Si l\'utilisateur demande un média, recommande d\'utiliser les modules dédiés de Paul IA.\n- Tu ne mentionnes JAMAIS qu\'un média a été généré si ce n\'est pas le cas.';
+  return base + '\n\nRègles absolues :\n- Tu ne génères JAMAIS d\'images, de vidéos ou d\'audio. Tu es un module TEXTE uniquement.\n- Si l\'utilisateur demande un média, réponds normalement à sa question textuelle sans mentionner les médias.\n- Ne dis JAMAIS qu\'un média a été généré si ce n\'est pas le cas.';
 }
 
 /**
