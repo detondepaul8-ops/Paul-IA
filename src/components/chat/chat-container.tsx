@@ -55,11 +55,13 @@ export default function ChatContainer() {
         if (res.ok) {
           const data = await res.json();
           setMessages(
-            data.messages.map((m: { id: string; role: string; content: string; module?: string }) => ({
+            data.messages.map((m: { id: string; role: string; content: string; module?: string; mediaUrl?: string | null; mediaType?: string | null }) => ({
               id: m.id,
               role: m.role as 'user' | 'assistant',
               content: m.content,
               module: m.module,
+              mediaUrl: m.mediaUrl ?? null,
+              mediaType: (m.mediaType as 'image' | 'video' | 'audio' | null) ?? null,
             }))
           );
         }
@@ -92,7 +94,7 @@ export default function ChatContainer() {
             </Button>
             <div>
               <h1 className="font-semibold text-foreground text-sm">Paul IA</h1>
-              <p className="text-xs text-muted-foreground">Assistant intelligent multi-modules</p>
+              <p className="text-xs text-muted-foreground">Assistant multimédia — Texte, Images, Vidéos, Audio</p>
             </div>
           </div>
 

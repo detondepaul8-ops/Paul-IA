@@ -14,63 +14,57 @@ export async function POST(request: NextRequest) {
     };
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Message requis' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Message requis' }, { status: 400 });
     }
 
-    // Save user message
+    // Create or reuse conversation
     let convId = conversationId;
     if (!convId) {
       const conversation = await db.conversation.create({
-        data: {
-          title: message.slice(0, 60),
-        },
+        data: { title: message.slice(0, 60) },
       });
       convId = conversation.id;
     }
 
+    // Save user message
     await db.message.create({
-      data: {
-        conversationId: convId,
-        role: 'user',
-        content: message,
-      },
+      data: { conversationId: convId, role: 'user', content: message },
     });
 
     // Classify intent
     const routeResult = await classifyIntent(message);
 
-    // Convert history to ChatMessage format
+    // Build history
     const chatHistory: ChatMessage[] = (history || [])
-      .filter((h: { role: string; content: string }) => h.role === 'user' || h.role === 'assistant')
+      .filter((h: { role: string }) => h.role === 'user' || h.role === 'assistant')
       .slice(-10)
       .map((h: { role: string; content: string }) => ({
         role: h.role as 'user' | 'assistant',
         content: h.content,
       }));
 
-    // Process with appropriate module
+    // Process with the right module
     let response;
     try {
       response = await processMessage(routeResult.taskType, message, chatHistory);
     } catch (error) {
-      console.error('Module error, using fallback:', error);
+      console.error('Module error, fallback:', error);
       response = await fallbackResponse(message, error as Error);
     }
 
-    // Save assistant message
+    // Save assistant message WITH media references
     await db.message.create({
       data: {
         conversationId: convId,
         role: 'assistant',
         content: response.content,
         module: response.module,
+        mediaUrl: response.mediaUrl,
+        mediaType: response.mediaType,
       },
     });
 
-    // Update conversation
+    // Update conversation metadata
     await db.conversation.update({
       where: { id: convId },
       data: {
@@ -84,13 +78,11 @@ export async function POST(request: NextRequest) {
       module: response.module,
       conversationId: convId,
       route: routeResult,
-      imageBase64: response.imageBase64 ?? null,
+      mediaUrl: response.mediaUrl,
+      mediaType: response.mediaType,
     });
   } catch (error) {
     console.error('Chat API error:', error);
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 });
   }
 }

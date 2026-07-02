@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 
+export type ClientMediaType = 'image' | 'video' | 'audio' | null;
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   module?: string;
-  imageBase64?: string | null;
+  mediaUrl?: string | null;
+  mediaType?: ClientMediaType;
   isLoading?: boolean;
 }
 
@@ -32,6 +35,7 @@ interface ChatStore {
   setMessages: (messages: Message[]) => void;
   addMessage: (message: Message) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
+  removeMediaFromMessage: (messageId: string) => void;
 
   // UI State
   isLoading: boolean;
@@ -43,7 +47,7 @@ interface ChatStore {
   clearMessages: () => void;
 }
 
-export const useChatStore = create<ChatStore>((set) => ({
+export const useChatStore = create<ChatStore>((set, get) => ({
   conversations: [],
   currentConversationId: null,
   setConversations: (conversations) => set({ conversations }),
@@ -71,6 +75,24 @@ export const useChatStore = create<ChatStore>((set) => ({
         m.id === id ? { ...m, ...updates } : m
       ),
     })),
+  removeMediaFromMessage: (messageId) => {
+    const msg = get().messages.find((m) => m.id === messageId);
+    if (msg && msg.mediaUrl) {
+      const filename = msg.mediaUrl.split('/').pop();
+      fetch('/api/media-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, messageId }),
+      });
+    }
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId
+          ? { ...m, mediaUrl: null, mediaType: null }
+          : m
+      ),
+    }));
+  },
 
   isLoading: false,
   sidebarOpen: false,

@@ -14,7 +14,9 @@ const MODULE_COLORS: Record<string, string> = {
   code: 'text-cyan-400',
   content: 'text-amber-400',
   image: 'text-pink-400',
-  project: 'text-violet-400',
+  video: 'text-rose-400',
+  audio: 'text-violet-400',
+  project: 'text-blue-400',
 };
 
 const MODULE_ICONS: Record<string, string> = {
@@ -22,6 +24,8 @@ const MODULE_ICONS: Record<string, string> = {
   code: '⚡',
   content: '📝',
   image: '🎨',
+  video: '🎬',
+  audio: '🔊',
   project: '🏗️',
 };
 

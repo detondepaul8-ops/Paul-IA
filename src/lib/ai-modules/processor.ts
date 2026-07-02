@@ -1,94 +1,89 @@
-import { chatCompletion, chatCompletionStream, generateImage } from '../zai';
+// ── Message Processor ────────────────────────────────────────────────
+// Central orchestrator that routes to the correct specialized module.
+
+import { chatCompletion, chatCompletionStream } from '../zai';
 import type { ChatMessage } from '../zai';
 import type { TaskType } from '../ai-router';
 import { MODULE_SYSTEM_PROMPTS } from '../ai-router';
+import { processImageRequest } from './image-module';
+import { processVideoRequest } from './video-module';
+import { processAudioRequest } from './audio-module';
 
 export interface ModuleResponse {
   content: string;
   module: TaskType;
-  imageBase64?: string | null;
+  mediaUrl: string | null;
+  mediaType: 'image' | 'video' | 'audio' | null;
 }
 
+/**
+ * Main entry point: route the message to the appropriate module.
+ */
 export async function processMessage(
   taskType: TaskType,
   userMessage: string,
   conversationHistory: ChatMessage[],
-  onStream?: (chunk: string) => void
+  _onStream?: (chunk: string) => void
 ): Promise<ModuleResponse> {
-  const systemPrompt = MODULE_SYSTEM_PROMPTS[taskType];
+  switch (taskType) {
+    case 'image':
+      return processImageRequest(userMessage);
 
-  // For image generation, extract a clean prompt
-  if (taskType === 'image') {
-    const imagePrompt = await extractImagePrompt(userMessage, systemPrompt);
-    const imageBase64 = await generateImage(imagePrompt);
+    case 'video':
+      return processVideoRequest(userMessage);
 
-    if (imageBase64) {
-      const caption = await generateImageCaption(userMessage);
-      return {
-        content: caption,
-        module: 'image',
-        imageBase64: `data:image/png;base64,${imageBase64}`,
-      };
-    }
+    case 'audio':
+      return processAudioRequest(userMessage);
 
-    return {
-      content: "Désolé, je n'ai pas pu générer l'image demandée. Veuillez réessayer avec une description plus détaillée.",
-      module: 'image',
-      imageBase64: null,
-    };
+    // Text-based modules: chat, code, content, project
+    default:
+      return processTextModule(taskType, userMessage, conversationHistory);
   }
+}
 
-  // For text-based modules (chat, code, content, project)
+/**
+ * Handle text-only modules (chat, code, content, project).
+ */
+async function processTextModule(
+  taskType: TaskType,
+  userMessage: string,
+  conversationHistory: ChatMessage[]
+): Promise<ModuleResponse> {
+  const systemPrompt = buildSystemPrompt(taskType);
+
   const messages: ChatMessage[] = [
     { role: 'system', content: systemPrompt },
     ...conversationHistory.slice(-10),
     { role: 'user', content: userMessage },
   ];
 
-  if (onStream) {
-    const fullText = await chatCompletionStream(messages, onStream, {
-      temperature: taskType === 'code' ? 0.3 : 0.7,
-      maxTokens: taskType === 'project' ? 8192 : 4096,
-    });
-    return { content: fullText, module: taskType };
-  } else {
-    const content = await chatCompletion(messages, {
-      temperature: taskType === 'code' ? 0.3 : 0.7,
-      maxTokens: taskType === 'project' ? 8192 : 4096,
-    });
-    return { content, module: taskType };
-  }
+  // IMPORTANT: instruct text modules to NEVER claim media generation
+  const mediaGuard = '\n\nRègle critique : tu ne peux PAS générer d\'images, de vidéos ou d\'audio. Si l\'utilisateur demande un média, dis-lui que Paul IA le fera via le module dédié.';
+
+  messages[messages.length - 1] = {
+    role: 'user',
+    content: userMessage + mediaGuard,
+  };
+
+  const content = await chatCompletion(messages, {
+    temperature: taskType === 'code' ? 0.3 : 0.7,
+    maxTokens: taskType === 'project' ? 8192 : 4096,
+  });
+
+  return { content, module: taskType, mediaUrl: null, mediaType: null };
 }
 
-async function extractImagePrompt(userMessage: string, systemPrompt: string): Promise<string> {
-  try {
-    const prompt = await chatCompletion([
-      {
-        role: 'system',
-        content: `${systemPrompt}\n\nTransforme la demande de l'utilisateur en un prompt d'image détaillé et visuel en anglais. Réponds UNIQUEMENT avec le prompt d'image, sans explication ni guillemets.`,
-      },
-      { role: 'user', content: userMessage },
-    ], { temperature: 0.5, maxTokens: 200 });
-    return prompt.trim().replace(/^["']|["']$/g, '');
-  } catch {
-    return userMessage;
-  }
+/**
+ * Build system prompt with media guardrails.
+ */
+function buildSystemPrompt(taskType: TaskType): string {
+  const base = MODULE_SYSTEM_PROMPTS[taskType] || MODULE_SYSTEM_PROMPTS.chat;
+  return base + '\n\nRègles absolues :\n- Tu ne génères JAMAIS d\'images, vidéos ou audio directement.\n- Si l\'utilisateur demande un média, recommande d\'utiliser les modules dédiés de Paul IA.\n- Tu ne mentionnes JAMAIS qu\'un média a été généré si ce n\'est pas le cas.';
 }
 
-async function generateImageCaption(userMessage: string): Promise<string> {
-  try {
-    return await chatCompletion([
-      {
-        role: 'system',
-        content: "Tu es un assistant qui confirme la génération d'une image. Réponds brièvement en français (1-2 phrases) pour confirmer que l'image a été générée selon la demande.",
-      },
-      { role: 'user', content: `Confirme que tu as généré cette image: "${userMessage}"` },
-    ], { temperature: 0.5, maxTokens: 100 });
-  } catch {
-    return "Voici l'image générée selon votre demande :";
-  }
-}
-
+/**
+ * Fallback if the specialized module fails.
+ */
 export async function fallbackResponse(
   userMessage: string,
   _error: Error
@@ -97,15 +92,17 @@ export async function fallbackResponse(
     const content = await chatCompletion([
       {
         role: 'system',
-        content: "Tu es Paul IA. Le module spécialisé a échoué. Réponds quand même de manière utile à l'utilisateur. Ne mentionne pas l'erreur technique.",
+        content: "Tu es Paul IA. Le module spécialisé a échoué. Réponds utilement. Ne mentionne pas l'erreur. Ne génère pas de média.",
       },
       { role: 'user', content: userMessage },
     ]);
-    return { content, module: 'chat' };
+    return { content, module: 'chat', mediaUrl: null, mediaType: null };
   } catch {
     return {
       content: "Je suis désolé, une erreur technique est survenue. Veuillez réessayer.",
       module: 'chat',
+      mediaUrl: null,
+      mediaType: null,
     };
   }
 }

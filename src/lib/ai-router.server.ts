@@ -4,12 +4,29 @@ import type { TaskType, RouteResult } from './ai-router';
 
 const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[] = [
   {
+    type: 'video',
+    patterns: [
+      /\b(vidéo|video|animation|clip|film|movie|animé|animée|motion)\b/i,
+      /\b(crée|génère|fabrique|produis|make|create|generate)\s+(un|une|a|an)?\s*(vidéo|video|clip|film|animation|movie)\b/i,
+      /\b(génère|crée)\s+(une\s+)?(animation|séquence|scène)\s+(vidéo|animée)?\b/i,
+    ],
+    priority: 6,
+  },
+  {
+    type: 'audio',
+    patterns: [
+      /\b(audio|voix|voix\s+off|narration|musique|son|speech|tts|text[- ]to[- ]speech|parole)\b/i,
+      /\b(lis|lis\s+ce\s+texte|prononce|enregistre|dicte|synthesize|synthétise)\b/i,
+      /\b(génère|crée|produis)\s+(un|une|a|an)?\s*(audio|son|voix|discours|speech|musique)\b/i,
+    ],
+    priority: 6,
+  },
+  {
     type: 'image',
     patterns: [
       /\b(génère|crée|dessine|fais|fabrique)\s+(une\s+)?(image|illustration|photo|dessin|logo|bannière|icône|affiche|miniature|thumbnail)/i,
       /\b(image|illustration|photo|dessin)\s+(de|d'|sur|pour)/i,
       /\b(generate|create|draw|make|design)\s+(an?\s+)?(image|illustration|photo|drawing|logo|banner|icon|poster|thumbnail)/i,
-      /^(génère|crée|dessine|make me|draw me|generate|create)\s/i,
       /\b(visuel|graphique|pictogramme|infographie)\b/i,
     ],
     priority: 5,
@@ -22,8 +39,6 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
       /\b(html|css|javascript|typescript|python|react|next\.?js|node|express|prisma|sql|docker|git)\b/i,
       /\b(fix|corrige|debug|refactor|optimize|optimise)\s/i,
       /\b(comment\s+(puis-je|peut-on|dois-je|faire pour)|how\s+(to|can\s+i|do\s|i|should\s+i))\s.*\b(code|programme|implement|build|create)\b/i,
-      /\b(structure|architecture|projet|project)\s+(de\s+)?(code|web|app|application)\b/i,
-      /\b{[\s\S]*}\s*$/,
     ],
     priority: 4,
   },
@@ -33,7 +48,6 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
       /\b(article|blog|contenu|content|copywriting|texte|description|résumé|summary|proposal|offre|présentation|pitch|email|newsletter|story|histoire)\b/i,
       /\b(rédige|écris|compose|formule|draft|propose)\s+(un|une|a|an)?\s*(article|blog|contenu|texte|email|offre|proposal|présentation|pitch|résumé|story)\b/i,
       /\b(marketing|seo|stratégie|business|plan|idées|ideas|brainstorm|créatif|creative)\b/i,
-      /\b(stratégie\s+de\s+contenu|content\s+strategy|calendrier\s+éditorial)\b/i,
     ],
     priority: 3,
   },
@@ -42,7 +56,6 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
     patterns: [
       /\b(projet\s+complet|full\s+project|application\s+complète|mvp|saas|plateforme|platform)\b/i,
       /\b(construis\s+(moi\s+)?(un|une)\s*(projet|app|application|système|system)\s+complet)/i,
-      /\b(build\s+(me\s+)?(a\s+)?(complete\s+)?(project|app|application|system|platform))\b/i,
       /\b(structure\s+(du|de)\s+projet|project\s+structure|architecture\s+complète)\b/i,
       /\b(déploiement|deployment|guide\s+d'installation|installation\s+guide)\b/i,
     ],
@@ -72,25 +85,29 @@ function classifyByPatterns(input: string): RouteResult | null {
 }
 
 export async function classifyIntent(userMessage: string): Promise<RouteResult> {
-  // Step 1: Try pattern matching first (fast)
+  // Step 1: Fast pattern matching
   const patternResult = classifyByPatterns(userMessage);
-  if (patternResult && patternResult.confidence >= 4) {
+  if (patternResult && patternResult.confidence >= 5) {
     return patternResult;
   }
 
-  // Step 2: Use LLM for classification
+  // Step 2: LLM classification
   try {
-    const classificationPrompt = `Tu es un classificateur d'intention. Analyse le message de l'utilisateur et classe-le dans UNE des catégories suivantes:
+    const classificationPrompt = `Tu es un classificateur d'intention. Analyse le message et classe-le dans UNE catégorie:
 
-- "chat": Discussion générale, questions, explications, conversation
-- "code": Génération de code, développement, programmation, debug, refactoring
-- "content": Création de contenu, rédaction, marketing, articles, emails
-- "image": Génération d'images, illustrations, visuels
-- "project": Création de projet complet, MVP, architecture système, déploiement
+- "chat": Discussion, questions, explications
+- "code": Génération de code, programmation, debug
+- "content": Rédaction, marketing, articles, emails
+- "image": Génération d'images, illustrations
+- "video": Génération de vidéos, animations
+- "audio": Voix, narration, TTS, musique
+- "project": Projet complet, MVP, architecture
 
-Réponds UNIQUEMENT avec un objet JSON: {"taskType": "chat|code|content|image|project", "confidence": 0.0-1.0, "reason": "courte explication"}
+Règle CRITIQUE: si la demande parle de vidéo/film/animation → "video". Si la demande parle de voix/audio/son → "audio".
 
-Message de l'utilisateur: "${userMessage}"`;
+JSON: {"taskType":"...","confidence":0.0-1.0,"reason":"..."}
+
+Message: "${userMessage}"`;
 
     const response = await chatCompletion([
       { role: 'system', content: classificationPrompt },
@@ -98,7 +115,7 @@ Message de l'utilisateur: "${userMessage}"`;
 
     const jsonMatch = response.match(/\{[\s\S]*?\}/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as RouteResult;
+      const parsed = JSON.parse(jsonMatch[0]);
       return {
         taskType: parsed.taskType as TaskType,
         confidence: parsed.confidence,
@@ -106,13 +123,12 @@ Message de l'utilisateur: "${userMessage}"`;
       };
     }
   } catch (error) {
-    console.error('LLM classification failed, falling back to patterns:', error);
+    console.error('LLM classification failed:', error);
   }
 
-  // Step 3: Fallback
   return patternResult ?? {
     taskType: 'chat',
     confidence: 0.5,
-    reason: 'Classification par défaut (fallback)',
+    reason: 'Classification par défaut',
   };
 }

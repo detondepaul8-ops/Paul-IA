@@ -2,21 +2,20 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { SendHorizontal, Menu, MoreVertical } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { SendHorizontal } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store';
 
 export default function ChatInput() {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { isLoading, setIsLoading, addMessage, updateMessage, currentConversationId, setCurrentConversation, messages, addConversation, setConversations } = useChatStore();
+  const {
+    isLoading, setIsLoading,
+    addMessage, updateMessage,
+    currentConversationId, setCurrentConversation,
+    messages, addConversation,
+  } = useChatStore();
 
-  // Auto-resize textarea
+  // Auto-resize
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -24,46 +23,30 @@ export default function ChatInput() {
     }
   }, [input]);
 
-  // Focus on mount
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  // Focus
+  useEffect(() => { textareaRef.current?.focus(); }, []);
 
   const handleSend = async () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
     setInput('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // Add user message
     const userMsgId = crypto.randomUUID();
-    addMessage({
-      id: userMsgId,
-      role: 'user',
-      content: trimmed,
-    });
+    addMessage({ id: userMsgId, role: 'user', content: trimmed });
 
-    // Add loading placeholder
     const loadingId = crypto.randomUUID();
-    addMessage({
-      id: loadingId,
-      role: 'assistant',
-      content: '',
-      isLoading: true,
-    });
+    addMessage({ id: loadingId, role: 'assistant', content: '', isLoading: true });
 
     setIsLoading(true);
 
     try {
-      // Build history from messages (exclude the loading one)
       const history = messages
         .filter((m) => !m.isLoading)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const response = await fetch('/api/chat', {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -73,21 +56,17 @@ export default function ChatInput() {
         }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur');
-      }
-
-      // Update loading message with real content
       updateMessage(loadingId, {
         content: data.content,
         module: data.module,
-        imageBase64: data.imageBase64 || null,
+        mediaUrl: data.mediaUrl || null,
+        mediaType: data.mediaType || null,
         isLoading: false,
       });
 
-      // If new conversation was created, update state
       if (!currentConversationId && data.conversationId) {
         setCurrentConversation(data.conversationId);
         addConversation({
@@ -99,7 +78,7 @@ export default function ChatInput() {
           _count: { messages: 1 },
         });
       }
-    } catch (error) {
+    } catch {
       updateMessage(loadingId, {
         content: 'Désolé, une erreur est survenue. Veuillez réessayer.',
         isLoading: false,
@@ -140,7 +119,7 @@ export default function ChatInput() {
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground text-center mt-2">
-          Paul IA route automatiquement vers le module adapté. Les réponses peuvent contenir des erreurs.
+          Texte, code, images, vidéos, audio — Paul IA route automatiquement.
         </p>
       </div>
     </div>
