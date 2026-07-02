@@ -42,7 +42,7 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
     patterns: [
       /\b(projet\s+complet|full\s+project|application\s+complète|mvp|saas|plateforme|platform)\b/i,
       /\b(construis\s+(moi\s+)?(un|une)\s*(projet|app|application|système|system)\s+complet)/i,
-      /\b(build\s+(me\s+)?(a\s+)?(complete\s+)?(project|app|application|system|platform)\b/i,
+      /\b(build\s+(me\s+)?(a\s+)?(complete\s+)?(project|app|application|system|platform))\b/i,
       /\b(structure\s+(du|de)\s+projet|project\s+structure|architecture\s+complète)\b/i,
       /\b(déploiement|deployment|guide\s+d'installation|installation\s+guide)\b/i,
     ],

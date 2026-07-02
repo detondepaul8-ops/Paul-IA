@@ -1,7 +1,7 @@
-import { chatCompletion, chatCompletionStream, generateImage } from './zai';
-import type { ChatMessage } from './zai';
-import type { TaskType } from './ai-router';
-import { MODULE_SYSTEM_PROMPTS } from './ai-router';
+import { chatCompletion, chatCompletionStream, generateImage } from '../zai';
+import type { ChatMessage } from '../zai';
+import type { TaskType } from '../ai-router';
+import { MODULE_SYSTEM_PROMPTS } from '../ai-router';
 
 export interface ModuleResponse {
   content: string;
