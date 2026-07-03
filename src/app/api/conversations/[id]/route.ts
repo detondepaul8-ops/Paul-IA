@@ -7,12 +7,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const messages = await db.message.findMany({
+    const messages = await db.paul_Message.findMany({
       where: { conversationId: id },
       orderBy: { createdAt: 'asc' },
     });
 
-    const conversation = await db.conversation.findUnique({
+    const conversation = await db.paul_Conversation.findUnique({
       where: { id },
     });
 
@@ -33,8 +33,8 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await db.message.deleteMany({ where: { conversationId: id } });
-    await db.conversation.delete({ where: { id } });
+    await db.paul_Message.deleteMany({ where: { conversationId: id } });
+    await db.paul_Conversation.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

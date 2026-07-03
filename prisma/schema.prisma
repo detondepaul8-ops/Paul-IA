@@ -3,45 +3,37 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+// ── Paul IA Models ──────────────────────────────────────────────────
+// All models use "paul_" prefix to coexist with Factory IA tables.
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Conversation {
+model paul_Conversation {
   id        String   @id @default(cuid())
   title     String   @default("Nouvelle conversation")
   module    String   @default("chat")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  messages  Message[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  messages  paul_Message[]
+
+  @@map("paul_conversations")
 }
 
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
+model paul_Message {
+  id             String              @id @default(cuid())
+  conversationId String              @map("conversation_id")
   role           String
-  content        String
+  content        String              @db.Text
   module         String?
-  mediaUrl       String?
-  mediaType      String?
-  createdAt      DateTime     @default(now())
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  mediaUrl       String?             @map("media_url") @db.Text
+  mediaType      String?             @map("media_type")
+  mediaFilename  String?             @map("media_filename") @db.Text
+  createdAt      DateTime            @default(now()) @map("created_at")
+  conversation   paul_Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("paul_messages")
 }

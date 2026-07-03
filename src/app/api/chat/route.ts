@@ -20,14 +20,14 @@ export async function POST(request: NextRequest) {
     // Create or reuse conversation
     let convId = conversationId;
     if (!convId) {
-      const conversation = await db.conversation.create({
+      const conversation = await db.paul_Conversation.create({
         data: { title: message.slice(0, 60) },
       });
       convId = conversation.id;
     }
 
     // Save user message
-    await db.message.create({
+    await db.paul_Message.create({
       data: { conversationId: convId, role: 'user', content: message },
     });
 
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save assistant message WITH media references
-    await db.message.create({
+    await db.paul_Message.create({
       data: {
         conversationId: convId,
         role: 'assistant',
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Update conversation metadata
-    await db.conversation.update({
+    await db.paul_Conversation.update({
       where: { id: convId },
       data: {
         module: response.module,

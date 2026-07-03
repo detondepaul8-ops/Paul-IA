@@ -4,23 +4,24 @@ import { db } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
   try {
-    const { filename, messageId } = await request.json() as {
+    const { filename, messageId, storagePath } = await request.json() as {
       filename?: string;
       messageId?: string;
+      storagePath?: string;
     };
 
     // Clear media reference from the message in DB
     if (messageId) {
-      await db.message.update({
+      await db.paul_Message.update({
         where: { id: messageId },
-        data: { mediaUrl: null, mediaType: null },
+        data: { mediaUrl: null, mediaType: null, mediaFilename: null },
       });
     }
 
-    // Delete file from disk
+    // Delete file from Supabase Storage
     let deleted = false;
-    if (filename) {
-      deleted = await deleteMediaFile(filename);
+    if (filename || storagePath) {
+      deleted = await deleteMediaFile(filename || storagePath!);
     }
 
     return NextResponse.json({ success: true, fileDeleted: deleted });
