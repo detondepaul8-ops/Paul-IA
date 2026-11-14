@@ -13,8 +13,10 @@ function getAnonKey(): string {
 }
 
 function getServiceKey(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
+  // Admin operations fall back to the anon key when no service key is
+  // configured (storage policies must then allow anon writes).
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required');
   return key;
 }
 

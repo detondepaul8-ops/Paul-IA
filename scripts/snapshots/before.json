@@ -1,0 +1,505 @@
+{
+  "tables": [
+    {
+      "schema": "auth",
+      "table": "audit_log_entries",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "custom_oauth_providers",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "flow_state",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "identities",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "instances",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "mfa_amr_claims",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "mfa_challenges",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "mfa_factors",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "mfa_recovery_code_sets",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "mfa_recovery_codes",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "oauth_authorizations",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "oauth_client_states",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "oauth_clients",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "oauth_consents",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "one_time_tokens",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "refresh_tokens",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "saml_providers",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "saml_relay_states",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "schema_migrations",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "scim_tokens",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "scim_users",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "sessions",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "sso_domains",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "sso_providers",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "users",
+      "rls": true
+    },
+    {
+      "schema": "auth",
+      "table": "webauthn_challenges",
+      "rls": false
+    },
+    {
+      "schema": "auth",
+      "table": "webauthn_credentials",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "ai_conversations",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "ai_messages",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "app_settings",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "attendance_closures",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "attendance_records",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "audit_logs",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "call_participants",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "call_sessions",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "call_signals",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "checkpoint_awards",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "connection_logs",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "declarations",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "field_alerts",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "field_photo_events",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "field_photos",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "file_analyses",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "geo_consents",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "geo_sync_receipts",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "imported_files",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "localities",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "location_pings",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "location_requests",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "message_reads",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "messages",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "pre_registrations",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "push_subscriptions",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "users",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "AIProvider",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "ApiKey",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "AuditLog",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "CreditTransaction",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "MomoTransaction",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "ProviderErrorLog",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "QueryLog",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "SearchTool",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "SearchToolErrorLog",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "Subscription",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "TermsAcceptance",
+      "rls": false
+    },
+    {
+      "schema": "public",
+      "table": "User",
+      "rls": false
+    },
+    {
+      "schema": "realtime",
+      "table": "schema_migrations",
+      "rls": false
+    },
+    {
+      "schema": "realtime",
+      "table": "subscription",
+      "rls": false
+    },
+    {
+      "schema": "storage",
+      "table": "bucket_lifecycle_states",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "buckets_analytics",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "buckets_vectors",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "lifecycle_abandoned_artifacts",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "migrations",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "s3_multipart_uploads",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "s3_multipart_uploads_parts",
+      "rls": true
+    },
+    {
+      "schema": "storage",
+      "table": "vector_indexes",
+      "rls": true
+    },
+    {
+      "schema": "vault",
+      "table": "secrets",
+      "rls": false
+    }
+  ],
+  "policies": [],
+  "buckets": [],
+  "row_counts": {
+    "public.AIProvider": 9,
+    "public.ApiKey": 0,
+    "public.AuditLog": 0,
+    "public.CreditTransaction": 2,
+    "public.MomoTransaction": 0,
+    "public.ProviderErrorLog": 7,
+    "public.QueryLog": 1,
+    "public.SearchTool": 0,
+    "public.SearchToolErrorLog": 0,
+    "public.Subscription": 1,
+    "public.TermsAcceptance": 0,
+    "public.User": 3
+  },
+  "schemas": [
+    "auth",
+    "celtiis",
+    "celtiis_backup",
+    "extensions",
+    "graphql",
+    "graphql_public",
+    "information_schema",
+    "public",
+    "realtime",
+    "storage",
+    "vault"
+  ],
+  "triggers": [
+    {
+      "schema": "realtime",
+      "table": "subscription",
+      "trigger": "tr_check_filters"
+    },
+    {
+      "schema": "realtime",
+      "table": "subscription",
+      "trigger": "tr_check_filters"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "enforce_bucket_name_length_trigger"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "enforce_bucket_name_length_trigger"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "enforce_versioning_status_transition"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "protect_active_lifecycle_states"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "protect_bucket_control_insert"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "protect_bucket_control_update"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "protect_bucket_control_update_role"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "protect_buckets_delete"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "wake_lifecycle_on_policy_write"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "wake_lifecycle_on_policy_write"
+    },
+    {
+      "schema": "storage",
+      "table": "buckets",
+      "trigger": "wake_lifecycle_on_versioning_enable"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger": "protect_objects_delete"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "trigger": "update_objects_updated_at"
+    }
+  ]
+}

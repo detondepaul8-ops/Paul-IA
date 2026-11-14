@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readMediaFile, getMimeType } from '@/lib/media-storage';
+import { db } from '@/lib/db';
 
 export async function GET(
   _request: NextRequest,
@@ -13,18 +13,22 @@ export async function GET(
       return NextResponse.json({ error: 'Fichier invalide' }, { status: 400 });
     }
 
-    const buffer = await readMediaFile(filename);
-    if (!buffer) {
+    // The identifier is either the row id (uuid) or the stored filename (uuid.ext)
+    const file = await db.paul_MediaFile.findFirst({
+      where: { OR: [{ id: filename }, { filename }] },
+    });
+    if (!file) {
       return NextResponse.json({ error: 'Fichier non trouvé' }, { status: 404 });
     }
 
-    const mimeType = getMimeType(filename);
+    const bytes = new Uint8Array(file.data);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(bytes, {
       headers: {
-        'Content-Type': mimeType,
-        'Content-Length': String(buffer.length),
+        'Content-Type': file.mimeType,
+        'Content-Length': String(bytes.length),
         'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Disposition': 'inline',
       },
     });
   } catch (error) {

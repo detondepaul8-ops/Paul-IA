@@ -120,6 +120,21 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────
+-- 7 bis. Fichiers médias (backend de stockage en base)
+--    Utilisé quand aucune clé API Storage n'est configurée.
+--    Table propre, préfixée, additive et idempotente.
+-- ─────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS paul_media_files (
+  id         TEXT PRIMARY KEY,
+  media_type TEXT NOT NULL,
+  mime_type  TEXT NOT NULL,
+  filename   TEXT NOT NULL,
+  size       INTEGER NOT NULL,
+  data       BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ─────────────────────────────────────────────────────────────────
 -- 8. Politiques storage — noms uniques "paul_*", scoped au bucket
 --    paul-media uniquement. Aucune politique existante n'est modifiée.
 -- ─────────────────────────────────────────────────────────────────

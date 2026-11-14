@@ -37,3 +37,17 @@ model paul_Message {
   @@index([conversationId])
   @@map("paul_messages")
 }
+
+// Media storage (database backend). Used when no Supabase Storage API key
+// is configured; files are served by the /api/media/[filename] route.
+model paul_MediaFile {
+  id        String   @id
+  mediaType String   @map("media_type")
+  mimeType  String   @map("mime_type")
+  filename  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("paul_media_files")
+}

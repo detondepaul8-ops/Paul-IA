@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getSupabaseAdmin } from './supabase';
+import { db } from './db';
 
 export type MediaType = 'image' | 'video' | 'audio';
 
@@ -12,6 +13,16 @@ export interface StoredMedia {
 }
 
 const BUCKET = 'paul-media';
+const MAX_SIZE = 10485760; // 10 MB
+
+/**
+ * Storage backend selection:
+ * - Supabase Storage when an API key is configured (service or anon).
+ * - Database (paul_media_files) otherwise, served by /api/media/[filename].
+ */
+const STORAGE_ENABLED = Boolean(
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 function getDefaultExtension(mediaType: MediaType): string {
   switch (mediaType) {
@@ -40,115 +51,147 @@ export function inferMediaType(filename: string): MediaType | null {
   return null;
 }
 
+async function saveBuffer(
+  buffer: Buffer,
+  mediaType: MediaType,
+  extension?: string
+): Promise<StoredMedia> {
+  if (buffer.length > MAX_SIZE) {
+    throw new Error(`Media too large (${buffer.length} bytes, max ${MAX_SIZE})`);
+  }
+
+  const ext = extension || getDefaultExtension(mediaType);
+  const filename = `${crypto.randomUUID()}.${ext}`;
+  const storagePath = `${mediaType}s/${filename}`;
+
+  if (STORAGE_ENABLED) {
+    const admin = getSupabaseAdmin();
+
+    const { error } = await admin.storage
+      .from(BUCKET)
+      .upload(storagePath, buffer, {
+        contentType: getMimeType(filename),
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('Supabase upload error:', error);
+      throw new Error(`Failed to upload media: ${error.message}`);
+    }
+
+    const { data: urlData } = admin.storage
+      .from(BUCKET)
+      .getPublicUrl(storagePath);
+
+    return {
+      filename,
+      url: urlData.publicUrl,
+      filePath: storagePath,
+      mediaType,
+      size: buffer.length,
+    };
+  }
+
+  // Database backend: store bytes in paul_media_files, serve via /api/media/<id>
+  const id = crypto.randomUUID();
+  await db.paul_MediaFile.create({
+    data: {
+      id,
+      mediaType,
+      mimeType: getMimeType(filename),
+      filename,
+      size: buffer.length,
+      data: buffer,
+    },
+  });
+
+  return {
+    filename,
+    url: `/api/media/${id}`,
+    filePath: id,
+    mediaType,
+    size: buffer.length,
+  };
+}
+
 /**
- * Save base64 data to Supabase Storage.
- * Returns the public URL.
+ * Save base64 data. Returns the public URL.
  */
 export async function saveMediaFromBase64(
   base64Data: string,
   mediaType: MediaType,
   extension?: string
 ): Promise<StoredMedia> {
-  const ext = extension || getDefaultExtension(mediaType);
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const storagePath = `${mediaType}s/${filename}`;
-
   // Strip data URL prefix if present
   const cleanBase64 = base64Data.includes(',')
     ? base64Data.split(',')[1]
     : base64Data;
 
   const buffer = Buffer.from(cleanBase64, 'base64');
-
-  const admin = getSupabaseAdmin();
-
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .upload(storagePath, buffer, {
-      contentType: getMimeType(filename),
-      upsert: false,
-    });
-
-  if (error) {
-    console.error('Supabase upload error:', error);
-    throw new Error(`Failed to upload media: ${error.message}`);
-  }
-
-  const { data: urlData } = admin.storage
-    .from(BUCKET)
-    .getPublicUrl(storagePath);
-
-  return {
-    filename,
-    url: urlData.publicUrl,
-    filePath: storagePath,
-    mediaType,
-    size: buffer.length,
-  };
+  return saveBuffer(buffer, mediaType, extension);
 }
 
 /**
- * Save raw buffer to Supabase Storage.
+ * Save raw buffer.
  */
 export async function saveMediaFromBuffer(
   buffer: Buffer,
   mediaType: MediaType,
   extension?: string
 ): Promise<StoredMedia> {
-  const ext = extension || getDefaultExtension(mediaType);
-  const filename = `${crypto.randomUUID()}.${ext}`;
-  const storagePath = `${mediaType}s/${filename}`;
+  return saveBuffer(buffer, mediaType, extension);
+}
 
-  const admin = getSupabaseAdmin();
-
-  const { error } = await admin.storage
-    .from(BUCKET)
-    .upload(storagePath, buffer, {
-      contentType: getMimeType(filename),
-      upsert: false,
-    });
-
-  if (error) {
-    console.error('Supabase upload error:', error);
-    throw new Error(`Failed to upload media: ${error.message}`);
-  }
-
-  const { data: urlData } = admin.storage
-    .from(BUCKET)
-    .getPublicUrl(storagePath);
-
-  return {
-    filename,
-    url: urlData.publicUrl,
-    filePath: storagePath,
-    mediaType,
-    size: buffer.length,
-  };
+function normalizeMediaToken(raw: string): string {
+  // Accept full URLs ("/api/media/<id>", "https://.../storage/v1/object/public/...")
+  // or bare filenames ("<uuid>.<ext>", "<type>s/<uuid>.<ext>")
+  let token = raw.trim();
+  if (token.includes('?')) token = token.split('?')[0];
+  const parts = token.split('/').filter(Boolean);
+  token = parts[parts.length - 1] || token;
+  return token;
 }
 
 /**
- * Delete a media file from Supabase Storage.
+ * Delete a media file. Tries the database backend, then Supabase Storage.
  */
-export async function deleteMediaFile(filename: string): Promise<boolean> {
-  // Try both flat and prefixed paths
-  const paths = [
-    filename,
-    `images/${filename}`,
-    `videos/${filename}`,
-    `audios/${filename}`,
-  ];
+export async function deleteMediaFile(raw: string): Promise<boolean> {
+  const token = normalizeMediaToken(raw);
+  let deleted = false;
 
-  const admin = getSupabaseAdmin();
-
-  for (const p of paths) {
-    const { error } = await admin.storage
-      .from(BUCKET)
-      .remove([p]);
-    if (!error) return true;
+  try {
+    const result = await db.paul_MediaFile.deleteMany({
+      where: { OR: [{ id: token }, { filename: token }] },
+    });
+    deleted = result.count > 0;
+  } catch (error) {
+    console.error('DB media delete error for:', token, error);
   }
 
-  console.error('Supabase delete error for:', filename);
-  return false;
+  if (STORAGE_ENABLED) {
+    const paths = [
+      token,
+      `images/${token}`,
+      `videos/${token}`,
+      `audios/${token}`,
+    ];
+
+    try {
+      const admin = getSupabaseAdmin();
+      for (const p of paths) {
+        const { error } = await admin.storage.from(BUCKET).remove([p]);
+        if (!error) {
+          deleted = true;
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('Supabase delete error for:', token, error);
+    }
+  }
+
+  if (!deleted) console.error('Media delete failed for:', token);
+  return deleted;
 }
 
 /**

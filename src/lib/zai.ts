@@ -4,7 +4,17 @@ let zaiInstance: ZAI | null = null;
 
 export async function getZAI(): Promise<ZAI> {
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create();
+    const configJson = process.env.ZAI_CONFIG_JSON;
+    if (configJson) {
+      // Serverless hosts (e.g. Vercel) have a read-only filesystem, so the
+      // SDK's file-based loadConfig() cannot find .z-ai-config. The class
+      // constructor accepts the exact same JSON object.
+      zaiInstance = new (ZAI as unknown as new (config: Record<string, string>) => ZAI)(
+        JSON.parse(configJson)
+      );
+    } else {
+      zaiInstance = await ZAI.create();
+    }
   }
   return zaiInstance;
 }
