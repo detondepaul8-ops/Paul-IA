@@ -31,6 +31,7 @@ export async function GET() {
             { role: 'system', content: 'Réponds en un mot.' },
             { role: 'user', content: 'ping' },
           ],
+          model: process.env.ZAI_MODEL || undefined,
           max_tokens: 10,
         });
         result.zaiCallOk = true;

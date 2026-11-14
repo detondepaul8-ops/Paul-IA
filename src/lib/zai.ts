@@ -33,6 +33,7 @@ export async function chatCompletion(
   const zai = await getZAI();
   const completion = await zai.chat.completions.create({
     messages,
+    model: process.env.ZAI_MODEL || undefined,
     thinking: { type: 'disabled' },
     temperature: options?.temperature ?? 0.7,
     max_tokens: options?.maxTokens ?? 4096,
@@ -49,6 +50,7 @@ export async function chatCompletionStream(
   const response = await zai.chat.completions.create({
     messages,
     stream: true,
+    model: process.env.ZAI_MODEL || undefined,
     thinking: { type: 'disabled' },
     temperature: options?.temperature ?? 0.7,
     max_tokens: options?.maxTokens ?? 4096,
@@ -75,10 +77,20 @@ export async function generateImage(prompt: string, size?: string): Promise<stri
   try {
     const zai = await getZAI();
     const response = await zai.images.generations.create({
+      model: process.env.ZAI_IMAGE_MODEL || undefined,
       prompt,
       size: (size as any) || '1024x1024',
     });
-    return response.data?.[0]?.base64 ?? null;
+    const item = response.data?.[0];
+    if (item?.base64) return item.base64;
+    // Public Z.ai API returns a URL instead of base64 — download it.
+    if (item?.url) {
+      const res = await fetch(item.url);
+      if (!res.ok) return null;
+      const buf = Buffer.from(await res.arrayBuffer());
+      return buf.toString('base64');
+    }
+    return null;
   } catch (error) {
     console.error('Image generation failed:', error);
     return null;

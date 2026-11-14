@@ -27,13 +27,24 @@ def force_public_schema(url):
 
 src = "/tmp/vp/celtiis.env"
 
+public_key = read_env(src, "ZAI_PUBLIC_API_KEY")
+public_model = read_env(src, "ZAI_PUBLIC_MODEL")
+
+# L'API publique api.z.ai est joignable depuis Vercel (internal-api.z.ai ne
+# l'est pas). Config minimale: baseUrl + apiKey uniquement.
+zai_config = json.dumps({"baseUrl": "https://api.z.ai/api/paas/v4", "apiKey": public_key})
+
 envs = [
     {"key": "DATABASE_URL", "value": force_public_schema(read_env(src, "DATABASE_URL")),
      "type": "encrypted", "target": ["production", "preview", "development"]},
     {"key": "DIRECT_URL", "value": force_public_schema(read_env(src, "DIRECT_URL")),
      "type": "encrypted", "target": ["production", "preview", "development"]},
-    {"key": "ZAI_CONFIG_JSON", "value": read_env(src, "ZAI_CONFIG_JSON"),
+    {"key": "ZAI_CONFIG_JSON", "value": zai_config,
      "type": "encrypted", "target": ["production", "preview", "development"]},
+    {"key": "ZAI_MODEL", "value": public_model,
+     "type": "plain", "target": ["production", "preview", "development"]},
+    {"key": "ZAI_IMAGE_MODEL", "value": "cogview-4-250304",
+     "type": "plain", "target": ["production", "preview", "development"]},
     {"key": "NEXT_PUBLIC_SUPABASE_URL",
      "value": "https://gwnkzgcgdegvcridhoby.supabase.co",
      "type": "plain", "target": ["production", "preview", "development"]},
