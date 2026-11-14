@@ -6,7 +6,7 @@ import json
 import os
 import urllib.request
 
-VERCEL_TOKEN = "REDACTED_VERCEL_TOKEN"
+VERCEL_TOKEN = os.environ["VERCEL_TOKEN"]  # fourni via scripts/secrets.local.env (gitignored)
 TEAM = "team_FXNfg1xIzx7cM2Dp7LTNVxOR"
 PROJECT = "paul-ia"
 

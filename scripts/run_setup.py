@@ -2,10 +2,11 @@
 """Exécute supabase/setup.sql (non-destructif, additif) puis vérifie les tables paul_.
 NE touche AUCUNE table existante."""
 import sys
+import os
 import psycopg2
 
 REF = "gwnkzgcgdegvcridhoby"
-PASSWORD = "REDACTED_SUPABASE_DB_PASSWORD"
+PASSWORD = os.environ["SUPABASE_DB_PASSWORD"]  # fourni via scripts/secrets.local.env (gitignored)
 HOST = "aws-0-eu-west-1.pooler.supabase.com"
 USER = f"postgres.{REF}"
 SQL_PATH = "/home/z/my-project/supabase/setup.sql"

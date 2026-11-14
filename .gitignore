@@ -62,3 +62,5 @@ prompt
 server.log
 # Skills directory
 /skills/
+# secrets locaux (jamais committés)
+scripts/secrets.local.env

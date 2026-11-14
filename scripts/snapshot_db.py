@@ -5,7 +5,7 @@ import sys, json, os
 import psycopg2
 
 REF = "gwnkzgcgdegvcridhoby"
-PASSWORD = "REDACTED_SUPABASE_DB_PASSWORD"
+PASSWORD = os.environ["SUPABASE_DB_PASSWORD"]  # fourni via scripts/secrets.local.env (gitignored)
 HOST = f"aws-0-eu-west-1.pooler.supabase.com"
 USER = f"postgres.{REF}"
 SNAP_DIR = "/home/z/my-project/scripts/snapshots"

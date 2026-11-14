@@ -2,10 +2,11 @@
 """Découvre la région du pooler Supabase et teste la connexion DB.
 NE MODIFIE RIEN — lecture seule (SELECT 1)."""
 import sys
+import os
 import psycopg2
 
 REF = "gwnkzgcgdegvcridhoby"
-PASSWORD = "REDACTED_SUPABASE_DB_PASSWORD"
+PASSWORD = os.environ["SUPABASE_DB_PASSWORD"]  # fourni via scripts/secrets.local.env (gitignored)
 USER = f"postgres.{REF}"
 DB = "postgres"
 
