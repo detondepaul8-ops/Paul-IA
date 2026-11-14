@@ -118,12 +118,11 @@ Règles CRITIQUES:
 4. Si la demande parle de voix/audio/son → "audio"
 5. "chat" ne signifie PAS "chat" (l'animal) — un chat (animal) est une demande d'image
 
-JSON UNIQUEMENT: {"taskType":"...","confidence":0.0-1.0,"reason":"..."}
-
-Message: "${userMessage}"`;
+Réponds UNIQUEMENT avec le JSON: {"taskType":"...","confidence":0.0-1.0,"reason":"..."}`;
 
     const response = await chatCompletion([
       { role: 'system', content: classificationPrompt },
+      { role: 'user', content: userMessage },
     ], { temperature: 0.1, maxTokens: 100 });
 
     const jsonMatch = response.match(/\{[\s\S]*?\}/);
