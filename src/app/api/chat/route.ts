@@ -4,6 +4,9 @@ import { classifyIntent } from '@/lib/ai-router.server';
 import { processMessage, fallbackResponse } from '@/lib/ai-modules/processor';
 import type { ChatMessage } from '@/lib/zai';
 
+// Image generation needs ~30-50s; the default serverless limit (10s) kills the request.
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

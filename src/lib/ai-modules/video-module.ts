@@ -13,8 +13,9 @@ export interface VideoModuleResult {
   videoTaskId?: string;
 }
 
+// Must fit inside the route's maxDuration (60s): ~50s of polling + task creation + DB saves.
 const POLL_INTERVAL_MS = 5000;
-const MAX_POLLS = 60;
+const MAX_POLLS = 10;
 
 export async function processVideoRequest(userMessage: string): Promise<VideoModuleResult> {
   // Step 1: Generate a detailed video scenario/prompt
