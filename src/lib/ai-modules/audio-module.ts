@@ -37,7 +37,10 @@ export async function processAudioRequest(userMessage: string): Promise<AudioMod
   try {
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(new Uint8Array(arrayBuffer));
-    const stored = await saveMediaFromBuffer(buffer, 'audio', 'wav');
+    // The free TTS fallback returns MP3; z.ai returns WAV.
+    const contentType = response.headers?.get?.('content-type') ?? '';
+    const ext = contentType.includes('mpeg') ? 'mp3' : 'wav';
+    const stored = await saveMediaFromBuffer(buffer, 'audio', ext);
 
     const preview = textToSpeak.length > 100
       ? textToSpeak.slice(0, 100) + '...'

@@ -74,25 +74,45 @@ export async function chatCompletionStream(
 // ── Image ─────────────────────────────────────────────────────────────────
 
 export async function generateImage(prompt: string, size?: string): Promise<string | null> {
+  const targetSize = (size as any) || '1024x1024';
   try {
     const zai = await getZAI();
     const response = await zai.images.generations.create({
       model: process.env.ZAI_IMAGE_MODEL || undefined,
       prompt,
-      size: (size as any) || '1024x1024',
+      size: targetSize,
     });
     const item = response.data?.[0];
     if (item?.base64) return item.base64;
     // Public Z.ai API returns a URL instead of base64 — download it.
     if (item?.url) {
       const res = await fetch(item.url);
-      if (!res.ok) return null;
-      const buf = Buffer.from(await res.arrayBuffer());
-      return buf.toString('base64');
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length > 0) return buf.toString('base64');
+      }
     }
-    return null;
+    console.error('Z.ai image generation returned no data, trying free fallback');
   } catch (error) {
-    console.error('Image generation failed:', error);
+    console.error('Z.ai image generation failed, trying free fallback:', error);
+  }
+  return generateImageFree(prompt, targetSize);
+}
+
+// Free fallback without API key (Pollinations / flux). Used when the paid
+// z.ai path is unavailable (429 insufficient balance, model not exposed).
+async function generateImageFree(prompt: string, size: string): Promise<string | null> {
+  try {
+    const [w, h] = size.split('x').map((n) => parseInt(n, 10) || 1024);
+    const seed = Math.floor(Math.random() * 1000000);
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}&nologo=true&model=flux&seed=${seed}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(45000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < 1000) return null;
+    return buf.toString('base64');
+  } catch (error) {
+    console.error('Free image fallback failed:', error);
     return null;
   }
 }
@@ -164,12 +184,35 @@ export async function generateTTS(
   text: string,
   options?: { voice?: string; speed?: number }
 ): Promise<Response> {
-  const zai = await getZAI();
-  return zai.audio.tts.create({
-    input: text,
-    voice: options?.voice ?? 'tongtong',
-    speed: options?.speed ?? 1.0,
-    response_format: 'wav',
-    stream: false,
-  });
+  try {
+    const zai = await getZAI();
+    return await zai.audio.tts.create({
+      input: text,
+      voice: options?.voice ?? 'tongtong',
+      speed: options?.speed ?? 1.0,
+      response_format: 'wav',
+      stream: false,
+    });
+  } catch (error) {
+    console.error('Z.ai TTS failed, trying free fallback:', error);
+    return generateTTSFree(text);
+  }
+}
+
+// Free fallback without API key: Google Translate TTS (MP3, ~200 chars max
+// per request, so the text is split and the MP3 frames concatenated).
+async function generateTTSFree(text: string): Promise<Response> {
+  const chunks = text.replace(/\s+/g, ' ').trim().match(/.{1,180}(?:\s|$)/g) || [text.trim()];
+  const parts: Buffer[] = [];
+  for (const chunk of chunks) {
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=fr&q=${encodeURIComponent(chunk.trim())}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)' },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) throw new Error(`Free TTS fallback failed: HTTP ${res.status}`);
+    parts.push(Buffer.from(await res.arrayBuffer()));
+  }
+  if (parts.length === 0) throw new Error('Free TTS fallback returned no audio');
+  return new Response(Buffer.concat(parts), { headers: { 'content-type': 'audio/mpeg' } });
 }
