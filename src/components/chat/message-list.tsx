@@ -10,6 +10,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Copy, Check, User, Bot, FileDown } from 'lucide-react';
 import { useState } from 'react';
 import MediaDisplay from './media-display';
+import TaskProgress from './task-progress';
 
 const MODULE_BADGES: Record<string, string> = {
   chat: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25',
