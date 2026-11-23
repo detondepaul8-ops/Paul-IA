@@ -19,9 +19,14 @@ npx prisma generate --schema prisma/schema.test.sqlite.prisma 2>&1 | tail -1
 npx prisma db push --schema prisma/schema.test.sqlite.prisma --skip-generate 2>&1 | tail -1
 
 echo "── Démarrage du serveur Next réel (port $PORT) ──"
+# Tout serveur résiduel d'un run précédent occuperait le port avec une DB morte.
+# fuser est absent du bac à sable et pkill ne voit pas le process renommé
+# ('next-server (v1)') : on tue par le PID du listener extrait de ss.
+LISTEN_PID=$(ss -tlnp 2>/dev/null | grep ":${PORT} " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
+[ -n "$LISTEN_PID" ] && { kill -9 "$LISTEN_PID" 2>/dev/null; sleep 2; }
 npx next start -p $PORT > /tmp/paul-test-server.log 2>&1 &
 SERVER_PID=$!
-trap 'kill $SERVER_PID 2>/dev/null; npx prisma generate 2>&1 | tail -1' EXIT
+trap 'kill $SERVER_PID 2>/dev/null; L=$(ss -tlnp 2>/dev/null | grep ":${PORT} " | grep -oE "pid=[0-9]+" | head -1 | cut -d= -f2); [ -n "$L" ] && kill -9 "$L" 2>/dev/null; npx prisma generate 2>&1 | tail -1' EXIT
 
 for i in $(seq 1 30); do
   sleep 1

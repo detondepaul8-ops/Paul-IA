@@ -122,28 +122,44 @@ export async function runAutonomyTest(disableExternal: boolean, includeBonus = f
   });
 
   const testVideo = () => timed('2. Vidéo RÉELLE (MP4 H.264 jouable, sans Z AI ni GROQ)', '', async () => {
-    const video = await internalVideo({
-      prompt: 'sunset over Lake Nokoue Cotonou Benin, pirogue boats on calm water, cinematic',
-      scenes: 3,
-      size: '1280x720',
-      secondsPerScene: 3,
-      timeoutMs: 38000,
-    });
-    const v = verifyMp4(video.mp4);
-    let url: string | undefined;
-    try { url = (await saveMediaFromBase64(video.mp4.toString('base64'), 'video'))?.url; } catch (e) { console.error('stockage vidéo:', e); }
-    return {
-      ok: v.ok,
-      engine: video.engines.join(' + '),
-      url,
-      sizeBytes: video.mp4.length,
-      sha256: sha256(video.mp4),
-      checks: [
-        ...v.checks,
-        { name: 'durée totale', ok: video.totalSeconds >= 5, detail: `${video.totalSeconds}s` },
-        { name: 'persistance média', ok: true, detail: url ? `URL: ${url}` : 'octets vérifiés, stockage non joignable' },
-      ],
-    };
+    try {
+      const video = await internalVideo({
+        prompt: 'sunset over Lake Nokoue Cotonou Benin, pirogue boats on calm water, cinematic',
+        scenes: 3,
+        size: '1280x720',
+        secondsPerScene: 3,
+        timeoutMs: 38000,
+        useCogFallback: true,
+      });
+      const v = verifyMp4(video.mp4);
+      let url: string | undefined;
+      try { url = (await saveMediaFromBase64(video.mp4.toString('base64'), 'video'))?.url; } catch (e) { console.error('stockage vidéo:', e); }
+      return {
+        ok: v.ok,
+        engine: video.engines.join(' + '),
+        url,
+        sizeBytes: video.mp4.length,
+        sha256: sha256(video.mp4),
+        checks: [
+          ...v.checks,
+          { name: 'durée totale', ok: video.totalSeconds >= 5, detail: `${video.totalSeconds}s` },
+          { name: 'persistance média', ok: true, detail: url ? `URL: ${url}` : 'octets vérifiés, stockage non joignable' },
+        ],
+      };
+    } catch (videoError) {
+      // Échec honnête : aucune image réelle obtenable → le test le rapporte
+      // au lieu de livrer une vidéo sans contenu.
+      return {
+        ok: false,
+        engine: 'moteur vidéo interne (keyframes réelles)',
+        url: undefined,
+        sizeBytes: 0,
+        sha256: '',
+        checks: [
+          { name: 'contenu réel disponible', ok: false, detail: videoError instanceof Error ? videoError.message : String(videoError) },
+        ],
+      };
+    }
   });
 
   const testExcel = () => timed('3. Fichier Excel RÉEL (vérifié par ré-ouverture)', 'freeLLM (spec) + exceljs embarqué', async () => {

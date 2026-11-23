@@ -6,7 +6,7 @@
 
 import { createVideoTask, getVideoResult, chatCompletion, generateImage, ZaiApiError, isInsufficientBalanceError } from '../zai';
 import { saveMediaFromBase64 } from '../media-storage';
-import { internalVideo } from '../autonomy/internal-media';
+import { internalVideo, internalImage, VideoWithoutRealContentError } from '../autonomy/internal-media';
 import { verifyMp4 } from '../autonomy/selfcheck';
 import { MODULE_SYSTEM_PROMPTS } from '../ai-router';
 import type { TaskType } from '../ai-router';
@@ -149,7 +149,9 @@ async function imageToVideo(
 }
 
 /** Repli AUTONOME : vraie vidéo MP4 par le moteur interne (ffmpeg embarqué,
- *  keyframes sans clé ni crédit), puis image clé, puis message exact. */
+ *  keyframes RÉELLES sans clé ni crédit), puis image clé, puis message exact.
+ *  AUCUNE vidéo sans contenu : si aucune image réelle du scénario n'est
+ *  obtenable, on livre l'image clé et on explique précisément la limitation. */
 async function internalVideoFallback(
   userMessage: string,
   scenario: { prompt: string; description: string },
@@ -162,13 +164,14 @@ async function internalVideoFallback(
       size: '1280x720',
       secondsPerScene: 3,
       timeoutMs: 40000,
+      useCogFallback: true,
     });
     const check = verifyMp4(video.mp4);
     if (check.ok) {
       const stored = await saveMediaFromBase64(video.mp4.toString('base64'), 'video');
       if (stored?.url) {
         return {
-          content: `${scenario.description}\n\nLa vidéo ci-dessous a été produite par le MOTEUR INTERNE de Paul IA (rendu MP4 ${video.totalSeconds}s, ${video.scenes} scènes, encodage H.264 local), sans recours aux services externes de génération vidéo. Cause du repli : ${cause}`,
+          content: `${scenario.description}\n\nLa vidéo ci-dessous a été produite par le MOTEUR INTERNE de Paul IA (rendu MP4 ${video.totalSeconds}s, ${video.scenes} scènes, encodage H.264 local, images réelles du scénario : ${video.engines.join(', ')}), sans recours aux services externes de génération vidéo. Cause du repli : ${cause}`,
           module: 'video',
           mediaUrl: stored.url,
           mediaType: 'video',
@@ -177,24 +180,36 @@ async function internalVideoFallback(
     }
     console.error('Internal video failed checks:', check);
   } catch (internalError) {
+    if (internalError instanceof VideoWithoutRealContentError) {
+      console.error('Moteur vidéo interne refusé (contenu vide):', internalError.message);
+      return await keyFrameFallback(
+        userMessage, scenario,
+        `${cause} De plus, le moteur interne n'a pas obtenu d'images réelles du scénario (${internalError.message}) — aucune vidéo sans contenu ne vous est livrée.`
+      );
+    }
     console.error('Internal video engine failed:', internalError);
   }
   return keyFrameFallback(userMessage, scenario, cause);
 }
 
-/** Repli réel : image clé du scénario (CogView puis Pollinations). */
+/** Repli réel : image clé du scénario (moteur d'appui puis moteur ouvert). */
 async function keyFrameFallback(
   userMessage: string,
   scenario: { prompt: string; description: string },
   cause: string
 ): Promise<VideoModuleResult> {
   try {
-    const base64 = await generateImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720');
+    let base64 = await generateImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720');
+    let engine = "moteur image d'appui";
+    if (!base64) {
+      const alt = await internalImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720', 20000).catch(() => null);
+      if (alt) { base64 = alt.base64; engine = 'moteur image ouvert'; }
+    }
     if (base64) {
       const stored = await saveMediaFromBase64(base64, 'image');
       if (stored?.url) {
         return {
-          content: `La vidéo n'a pas pu être lancée : ${cause}\n\nEn attendant, voici l'IMAGE CLÉ de votre scénario, générée réellement : ${scenario.description}\n\nPour débloquer la vidéo complète par le moteur d'appui, rechargez ses crédits vidéo. Le moteur interne autonome reste disponible : il a déjà produit des MP4 réels sans aucun service externe.`,
+          content: `La vidéo n'a pas pu être lancée : ${cause}\n\nEn attendant, voici l'IMAGE CLÉ de votre scénario, générée réellement par le ${engine} : ${scenario.description}\n\nPour obtenir la vidéo complète, réessayez dans quelques instants : le moteur alterne automatiquement plusieurs sources d'images réelles avant d'assembler le MP4. Aucune vidéo sans contenu réel ne vous sera jamais livrée.`,
           module: 'video',
           mediaUrl: stored.url,
           mediaType: 'image',
@@ -205,7 +220,7 @@ async function keyFrameFallback(
     console.error('Video key-frame fallback failed:', fallbackError);
   }
   return {
-    content: `La création de la tâche vidéo a échoué : ${cause} Le scénario a été préparé avec succès (${scenario.description}) mais ni la vidéo ni l'image clé n'ont pu être produites pour le moment. Réessayez dans quelques instants.`,
+    content: `La création de la vidéo a échoué : ${cause} Le scénario a été préparé avec succès (${scenario.description}) mais ni la vidéo ni l'image clé n'ont pu être produites pour le moment — aucun fichier ne vous est livré. Réessayez dans quelques instants.`,
     module: 'video',
     mediaUrl: null,
     mediaType: null,

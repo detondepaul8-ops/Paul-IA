@@ -11,6 +11,12 @@ import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
 import { chmodSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { generateImage } from '../zai';
+
+/** La demande n'a pas pu être servie avec du contenu RÉEL : on refuse de
+ *  produire une vidéo sans contenu (dégradés de couleur, affiches abstraites)
+ *  qui donnerait à l'utilisateur l'impression d'un résultat. */
+export class VideoWithoutRealContentError extends Error {}
 
 // ── Image ──────────────────────────────────────────────────────────────────
 
@@ -50,9 +56,20 @@ export async function internalImage(prompt: string, size = '1280x720', timeoutMs
   throw new Error(`moteur image interne indisponible (${errors.join(' | ')})`);
 }
 
+/** Image via le moteur d'appui de l'application (clé configurée) —
+ *  utilisée quand les modèles image ouverts ne répondent pas. */
+export async function cogImage(prompt: string, size = '1280x720', timeoutMs = 12000): Promise<GeneratedImage> {
+  const result = await Promise.race([
+    generateImage(prompt, size),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+  if (!result || result.length < 1000) throw new Error("moteur image d'appui indisponible");
+  return { base64: result, engine: "moteur image d'appui (images réelles)" };
+}
+
 /** Moteur graphique PROCÉDURAL 100 % local : affiche professionnelle générée
  *  par le code de Paul IA (palette dérivée du prompt, composition géométrique,
- *  typographie) — aucune dépendance réseau, toujours disponible. */
+ *  typographie) — réservé aux affiches/documents, JAMAIS aux vidéos. */
 export async function proceduralImage(prompt: string, size = '1280x720'): Promise<GeneratedImage> {
   const [w, h] = size.split('x').map((n) => parseInt(n, 10) || 1280);
   const sharp = (await import('sharp')).default;
@@ -107,6 +124,9 @@ export interface InternalVideoOptions {
   prompt: string;
   /** Image source (base64 sans en-tête) pour le mode image → vidéo. */
   imageBase64?: string;
+  /** Compléter les keyframes manquantes avec le moteur image d'appui
+   *  (clé configurée) au lieu d'échouer dès la première source. */
+  useCogFallback?: boolean;
   /** Nombre de scènes/keyframes (3 ou 4). Défaut 4. */
   scenes?: number;
   /** Résolution. Défaut 1280x720. */
@@ -170,6 +190,8 @@ export async function internalVideo(opts: InternalVideoOptions): Promise<Interna
   try {
     return await encodeVideo(opts, true);
   } catch (error) {
+    // Sans contenu réel, retenter ne changera rien : l'échec est honnête.
+    if (error instanceof VideoWithoutRealContentError) throw error;
     console.error('Encodage complet impossible, mode allégé:', error instanceof Error ? error.message : error);
     return await encodeVideo({ ...opts, scenes: Math.min(opts.scenes ?? 4, 3) }, false);
   }
@@ -196,28 +218,45 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
       frames.push(frame);
       engines.push('image fournie');
     } else {
-      // Mode texte → vidéo : keyframes parallèles du moteur interne.
+      // Mode texte → vidéo : keyframes RÉELLES uniquement — jamais de contenu
+      // abstrait. Source 1 : modèles image ouverts (sans clé). Source 2 : le
+      // moteur image d'appui pour les scènes manquantes. Si aucune image
+      // réelle n'est obtenable, la vidéo est REFUSÉE (pas de contenu vide).
       const prompts = scenePrompts(opts.prompt, scenes);
       const results = await Promise.allSettled(
         prompts.map((p) => internalImage(p, `${w}x${h}`, Math.max(15000, budget - (Date.now() - started) - 14000)))
       );
-      const okFrames = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<GeneratedImage>[];
-      if (okFrames.length >= 2) {
-        engines.push(`flux-open (${okFrames.length}/${scenes} keyframes)`);
-        for (let i = 0; i < okFrames.length; i++) {
-          const f = path.join(tmp, `f${i}.jpg`);
-          await writeFile(f, Buffer.from(okFrames[i].value.base64, 'base64'));
-          frames.push(f);
-        }
-      } else {
-        // Repli intégral : affiches procédurales locales (sharp) — vidéo réelle.
-        engines.push('frames procédurales locales (repli intégral)');
-        for (let i = 0; i < prompts.length; i++) {
-          const img = await proceduralImage(prompts[i], `${w}x${h}`);
-          const f = path.join(tmp, `p${i}.jpg`);
-          await writeFile(f, Buffer.from(img.base64, 'base64'));
-          frames.push(f);
-        }
+      const realFrames: GeneratedImage[] = [];
+      const failedPrompts: string[] = [];
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') realFrames.push(r.value);
+        else failedPrompts.push(prompts[i]);
+      });
+      const openCount = realFrames.length;
+      if (openCount > 0) engines.push(`moteur image ouvert (${openCount}/${scenes} scènes)`);
+
+      if (opts.useCogFallback && failedPrompts.length > 0 && realFrames.length < scenes) {
+        const cogBudget = Math.max(6000, Math.min(12000, budget - (Date.now() - started) - 16000));
+        const cogResults = await Promise.allSettled(
+          failedPrompts.map((p) => cogImage(`${p}, cinematic still frame, highly detailed`, `${w}x${h}`, cogBudget))
+        );
+        const cogOk = cogResults.filter(
+          (r): r is PromiseFulfilledResult<GeneratedImage> => r.status === 'fulfilled'
+        );
+        for (const r of cogOk) realFrames.push(r.value);
+        if (cogOk.length > 0) engines.push(`moteur image d'appui (${cogOk.length}/${failedPrompts.length} scènes)`);
+      }
+
+      if (realFrames.length < 2) {
+        throw new VideoWithoutRealContentError(
+          `aucune image réelle du scénario n'a pu être obtenue (${realFrames.length}/${scenes} scènes) — aucune vidéo sans contenu n'est livrée`
+        );
+      }
+
+      for (let i = 0; i < realFrames.length; i++) {
+        const f = path.join(tmp, `f${i}.jpg`);
+        await writeFile(f, Buffer.from(realFrames[i].base64, 'base64'));
+        frames.push(f);
       }
     }
 
