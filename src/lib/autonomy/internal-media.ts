@@ -135,6 +135,10 @@ export interface InternalVideoOptions {
   prompt: string;
   /** Image source (base64 sans en-tête) pour le mode image → vidéo. */
   imageBase64?: string;
+  /** Scènes RÉELLES déjà générées (base64, ordre imposé) — l'encodage
+   *  MP4 s'applique directement, sans nouvelle source d'images. Utilisé
+   *  par le mode par étapes (une scène peinte à chaque vérification). */
+  precomputedFrames?: string[];
   /** Compléter les keyframes manquantes avec le moteur image d'appui
    *  (clé configurée) au lieu d'échouer dès la première source. */
   useCogFallback?: boolean;
@@ -179,7 +183,7 @@ function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
 }
 
 /** Variantes de prompt par scène : même sujet, angles/éclairage différents. */
-function scenePrompts(base: string, scenes: number): string[] {
+export function scenePrompts(base: string, scenes: number): string[] {
   const styles = [
     'wide establishing shot, cinematic lighting, highly detailed, professional',
     'medium shot, golden hour light, depth of field, cinematic, highly detailed',
@@ -221,7 +225,15 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
   try {
     const frames: string[] = [];
 
-    if (opts.imageBase64) {
+    if (opts.precomputedFrames?.length) {
+      // Scènes réelles déjà peintes (mode par étapes) : encodage direct.
+      for (let i = 0; i < opts.precomputedFrames.length; i++) {
+        const f = path.join(tmp, `f${i}.jpg`);
+        await writeFile(f, Buffer.from(opts.precomputedFrames[i], 'base64'));
+        frames.push(f);
+      }
+      engines.push(`scènes réelles pré-générées (${frames.length})`);
+    } else if (opts.imageBase64) {
       // Mode image → vidéo : une seule source, mouvement de caméra.
       const img = Buffer.from(opts.imageBase64, 'base64');
       const frame = path.join(tmp, 'f0.jpg');

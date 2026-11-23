@@ -50,9 +50,22 @@ export default function TaskProgress() {
           // Livraison du résultat dans la conversation (une seule fois)
           if (deliveredRef.current !== data.id) {
             deliveredRef.current = data.id;
-            const body = [data.result, data.summary].filter(Boolean).join('\n\n');
-            if (body) {
-              addMessage({ id: crypto.randomUUID(), role: 'assistant', content: body, module: 'agents' });
+            // Média livré par une tâche (vidéo assemblée ou image clé réelle)
+            const mediaEvent = [...(data.events || [])].reverse().find((e) => e.step === 'livrer' && e.detail?.startsWith('/api/media/'));
+            if (mediaEvent?.detail) {
+              addMessage({
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: data.summary || mediaEvent.label,
+                module: data.module,
+                mediaUrl: mediaEvent.detail,
+                mediaType: data.status === 'succeeded' && data.module === 'video' ? 'video' : 'image',
+              });
+            } else {
+              const body = [data.result, data.summary].filter(Boolean).join('\n\n');
+              if (body) {
+                addMessage({ id: crypto.randomUUID(), role: 'assistant', content: body, module: 'agents' });
+              }
             }
           }
           if (data.durationMs !== null) { setActiveTaskId(null); return; }

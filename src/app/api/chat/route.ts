@@ -7,6 +7,7 @@ import { chatCompletion } from '@/lib/zai';
 import type { ChatMessage } from '@/lib/zai';
 import { shouldOrchestrate, createTask, logEvent, finishTask, getTaskView, buildFinalReport, sanitizeForClient } from '@/lib/monitor';
 import { startAgentTask, executeAgentTask } from '@/lib/agents/orchestrator';
+import { startVideoSteps } from '@/lib/video-steps';
 
 // Image generation needs ~30-50s; the default serverless limit (10s) kills the request.
 export const maxDuration = 60;
@@ -132,13 +133,24 @@ export async function POST(request: NextRequest) {
           }
         }
       } else {
-        // image / video / audio : PAUL IA suit chaque étape réelle du travail
+        // image / video / audio : PAUL IA suit chaque étape réelle du travail.
+        // VIDÉO texte→vidéo : mode PAR ÉTAPES — une scène réelle est peinte à
+        // chaque vérification de progression (la source d'images publique
+        // limite son débit par IP : ~1 image / 10-15 s depuis Vercel, ce qui
+        // interdit de tout faire dans une fonction de 60 s).
+        const isVideoSteps = routeResult.taskType === 'video' && !validImages.length;
         const mediaTask = await createTask({
           title: (textMessage || 'Génération média').slice(0, 100),
           request: textMessage || 'génération média',
           module: routeResult.taskType,
           conversationId: convId,
-          plan: [
+          plan: isVideoSteps ? [
+            { id: 'comprendre', label: 'Analyser votre demande' },
+            { id: 'scene-0', label: 'Peindre la scène 1 (image réelle)' },
+            { id: 'scene-1', label: 'Peindre la scène 2 (image réelle)' },
+            { id: 'assembler', label: 'Assembler le MP4 (caméra + fondus)' },
+            { id: 'livrer', label: 'Vérifier et vous livrer le fichier' },
+          ] : [
             { id: 'comprendre', label: 'Analyser votre demande' },
             { id: 'generer', label: 'Générer le média avec mes moteurs' },
             { id: 'verifier', label: 'Vérifier le fichier produit' },
@@ -151,6 +163,15 @@ export async function POST(request: NextRequest) {
           label: 'J\'analyse votre demande et je prépare les instructions de génération.',
           detail: textMessage || 'analyse d\'images',
         });
+        if (isVideoSteps) {
+          const steps = await startVideoSteps(mediaTask.id, textMessage || 'crée une vidéo');
+          response = {
+            content: `${steps.description}\n\nJe prépare votre vidéo pas à pas : chaque scène est peinte en image réelle, puis assemblée en MP4 (mouvement de caméra, fondus, encodage H.264 local). La source d'images publiques limite son débit par serveur — une scène progresse à chaque vérification de progression ci-dessous (quelques secondes chacune) et votre film apparaît automatiquement dès l'assemblage terminé.`,
+            module: 'video',
+            mediaUrl: null,
+            mediaType: null,
+          };
+        } else {
         await logEvent(mediaTask.id, {
           step: 'generer',
           label: routeResult.taskType === 'video'
@@ -201,6 +222,7 @@ export async function POST(request: NextRequest) {
             errors: okMedia ? [] : ['génération sans fichier exploitable'],
           },
         });
+        }
       }
     } catch (error) {
       console.error('Module error, fallback:', error);
