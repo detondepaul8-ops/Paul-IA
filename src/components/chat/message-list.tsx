@@ -7,7 +7,7 @@ import type { TaskType } from '@/lib/ai-router';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Copy, Check, User, Bot } from 'lucide-react';
+import { Copy, Check, User, Bot, FileDown } from 'lucide-react';
 import { useState } from 'react';
 import MediaDisplay from './media-display';
 
@@ -191,8 +191,20 @@ export default function MessageList() {
                 )}
               </div>
 
+              {/* Fichier généré : bouton de téléchargement réel */}
+              {message.mediaUrl && message.mediaType === 'file' && (
+                <a
+                  href={message.mediaUrl}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border bg-card hover:bg-accent/40 transition-colors text-sm font-medium"
+                  download
+                >
+                  <FileDown className="h-4 w-4 text-emerald-400" />
+                  Télécharger {message.mediaFilename || 'le fichier'}
+                </a>
+              )}
+
               {/* Persistent media display */}
-              {message.mediaUrl && message.mediaType && (
+              {message.mediaUrl && message.mediaType && message.mediaType !== 'file' && (
                 <MediaDisplay
                   messageId={message.id}
                   mediaUrl={message.mediaUrl}

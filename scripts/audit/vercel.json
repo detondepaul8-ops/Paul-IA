@@ -1,0 +1,146 @@
+{
+ "projects": [
+  {
+   "name": "celtiis-bassila",
+   "framework": "nextjs",
+   "id": "prj_W8K2qM1wgWZoXiZVygCjlvS2h5d9",
+   "updatedAt": 1795427841173
+  },
+  {
+   "name": "my-project",
+   "framework": null,
+   "id": "prj_ztNOWyKqCEVlPoShzyYBtivOdNNk",
+   "updatedAt": 1795415803703
+  },
+  {
+   "name": "paul-ia",
+   "framework": "nextjs",
+   "id": "prj_TBEApxJVLn8eoLKK19ud65cboJsE",
+   "updatedAt": 1794677830033
+  },
+  {
+   "name": "factory-ia",
+   "framework": "nextjs",
+   "id": "prj_lznq41f2Sp5JE0ti7CvKVFkexAHK",
+   "updatedAt": 1794247249806
+  },
+  {
+   "name": "consumecano",
+   "framework": "nextjs",
+   "id": "prj_ahW2OAJJzLgjwJOcERM2mE3Uawbj",
+   "updatedAt": 1783037815461
+  },
+  {
+   "name": "alleluiafactory",
+   "framework": "nextjs",
+   "id": "prj_Nw63EmHH6C60kiKqD8LW47ilidUW",
+   "updatedAt": 1783037761868
+  },
+  {
+   "name": "project-mz2t3",
+   "framework": null,
+   "id": "prj_ZgJoORRz1Y8AS3lMyku3pkZ2uT49",
+   "updatedAt": 1782755606084
+  },
+  {
+   "name": "alleluia-deploy",
+   "framework": "nextjs",
+   "id": "prj_uawaY7I6lNso2M38R6zqA7tA4n3Z",
+   "updatedAt": 1781296255876
+  },
+  {
+   "name": "nextjs-with-supabase",
+   "framework": "nextjs",
+   "id": "prj_cCxKsejCR18sBhJYugiuUkcIVh3g",
+   "updatedAt": 1779924596926
+  }
+ ],
+ "domains": [
+  {
+   "name": "pia-chat.vercel.app",
+   "verified": true,
+   "redirect": null
+  },
+  {
+   "name": "paul-ia-six.vercel.app",
+   "verified": true,
+   "redirect": null
+  }
+ ],
+ "recent_deployments": [
+  {
+   "url": "paul-iu3c9hxvl-detondepaul8-1607s-projects.vercel.app",
+   "state": "READY",
+   "target": "production",
+   "created": 1794677778601
+  },
+  {
+   "url": "paul-51ii1uuu6-detondepaul8-1607s-projects.vercel.app",
+   "state": "READY",
+   "target": "production",
+   "created": 1794677168452
+  },
+  {
+   "url": "paul-p0ie5vvkn-detondepaul8-1607s-projects.vercel.app",
+   "state": "READY",
+   "target": "production",
+   "created": 1794671827438
+  }
+ ],
+ "env_keys": [
+  {
+   "key": "ZAI_MODEL",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "plain"
+  },
+  {
+   "key": "ZAI_IMAGE_MODEL",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "plain"
+  },
+  {
+   "key": "DATABASE_URL",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "encrypted"
+  },
+  {
+   "key": "DIRECT_URL",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "encrypted"
+  },
+  {
+   "key": "ZAI_CONFIG_JSON",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "encrypted"
+  },
+  {
+   "key": "NEXT_PUBLIC_SUPABASE_URL",
+   "target": [
+    "production",
+    "preview",
+    "development"
+   ],
+   "type": "plain"
+  }
+ ]
+}

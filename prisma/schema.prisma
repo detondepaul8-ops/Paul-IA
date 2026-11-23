@@ -51,3 +51,16 @@ model paul_MediaFile {
 
   @@map("paul_media_files")
 }
+
+// Fichiers Excel/PDF générés par l'IA : spec stocké, octets régénérés au
+// téléchargement par la route /api/files (exceljs / pdf-lib).
+model paul_AiFile {
+  id        String   @id
+  kind      String
+  title     String
+  filename  String
+  spec      Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("paul_ai_files")
+}

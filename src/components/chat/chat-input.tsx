@@ -2,12 +2,16 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { SendHorizontal } from 'lucide-react';
+import { SendHorizontal, Paperclip, X } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store';
+
+interface PendingImage { mime: string; dataBase64: string; preview: string }
 
 export default function ChatInput() {
   const [input, setInput] = useState('');
+  const [images, setImages] = useState<PendingImage[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const {
     isLoading, setIsLoading,
     addMessage, updateMessage,
@@ -26,15 +30,39 @@ export default function ChatInput() {
   // Focus
   useEffect(() => { textareaRef.current?.focus(); }, []);
 
+  const handlePickImages = (files: FileList | null) => {
+    if (!files) return;
+    for (const f of Array.from(files).slice(0, 3)) {
+      if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size > 3_300_000) continue;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = String(reader.result || '');
+        const base64 = dataUrl.split(',')[1] || '';
+        setImages((prev) => prev.length < 3
+          ? [...prev, { mime: f.type, dataBase64: base64, preview: dataUrl }]
+          : prev);
+      };
+      reader.readAsDataURL(f);
+    }
+    if (fileRef.current) fileRef.current.value = '';
+  };
+
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+    if ((!trimmed && images.length === 0) || isLoading) return;
 
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    const sentImages = images;
+    setImages([]);
 
     const userMsgId = crypto.randomUUID();
-    addMessage({ id: userMsgId, role: 'user', content: trimmed });
+    addMessage({
+      id: userMsgId,
+      role: 'user',
+      content: trimmed
+        + (sentImages.length ? ` [${sentImages.length} image${sentImages.length > 1 ? 's' : ''} transmise${sentImages.length > 1 ? 's' : ''}]` : ''),
+    });
 
     const loadingId = crypto.randomUUID();
     addMessage({ id: loadingId, role: 'assistant', content: '', isLoading: true });
@@ -53,6 +81,7 @@ export default function ChatInput() {
           message: trimmed,
           conversationId: currentConversationId,
           history,
+          images: sentImages.length ? sentImages.map((i) => ({ mime: i.mime, dataBase64: i.dataBase64 })) : undefined,
         }),
       });
 
@@ -71,7 +100,7 @@ export default function ChatInput() {
         setCurrentConversation(data.conversationId);
         addConversation({
           id: data.conversationId,
-          title: trimmed.slice(0, 60),
+          title: (trimmed || 'Analyse d\'image').slice(0, 60),
           module: data.module,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -98,7 +127,43 @@ export default function ChatInput() {
   return (
     <div className="border-t border-border bg-card/50 backdrop-blur-sm px-4 py-3">
       <div className="max-w-3xl mx-auto">
+        {images.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {images.map((img, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.preview} alt={`image ${i + 1}`} className="h-16 w-16 object-cover rounded-lg border border-border" />
+                <button
+                  onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  className="absolute -top-1.5 -right-1.5 p-0.5 rounded-full bg-secondary hover:bg-accent"
+                  aria-label="Retirer l'image"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-2 rounded-2xl border border-border bg-background p-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            className="hidden"
+            onChange={(e) => handlePickImages(e.target.files)}
+          />
+          <Button
+            onClick={() => fileRef.current?.click()}
+            disabled={isLoading || images.length >= 3}
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl flex-shrink-0"
+            aria-label="Joindre des images"
+            title="Joindre des images à analyser"
+          >
+            <Paperclip className="h-4 w-4" />
+          </Button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -111,7 +176,7 @@ export default function ChatInput() {
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={(!input.trim() && images.length === 0) || isLoading}
             size="icon"
             className="h-9 w-9 rounded-xl flex-shrink-0"
           >
@@ -119,7 +184,7 @@ export default function ChatInput() {
           </Button>
         </div>
         <p className="text-[11px] text-muted-foreground text-center mt-2">
-          Texte, code, images, vidéos, audio — Paul IA route automatiquement.
+          Texte, voix, images à analyser, code, fichiers Excel/PDF, recherche web — Paul IA route automatiquement.
         </p>
       </div>
     </div>

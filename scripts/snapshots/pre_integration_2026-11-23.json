@@ -142,12 +142,32 @@
     },
     {
       "schema": "celtiis",
+      "table": "ai_files",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
       "table": "ai_messages",
       "rls": false
     },
     {
       "schema": "celtiis",
       "table": "app_settings",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "ar_dossiers",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "assistant_directives",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "assistant_escalations",
       "rls": false
     },
     {
@@ -193,6 +213,11 @@
     {
       "schema": "celtiis",
       "table": "declarations",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "dossier_docs",
       "rls": false
     },
     {
@@ -243,6 +268,16 @@
     {
       "schema": "celtiis",
       "table": "location_requests",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "login_history",
+      "rls": false
+    },
+    {
+      "schema": "celtiis",
+      "table": "login_photos",
       "rls": false
     },
     {
@@ -334,6 +369,11 @@
       "schema": "public",
       "table": "paul_conversations",
       "rls": true
+    },
+    {
+      "schema": "public",
+      "table": "paul_media_files",
+      "rls": false
     },
     {
       "schema": "public",
@@ -453,8 +493,9 @@
     "public.Subscription": 1,
     "public.TermsAcceptance": 0,
     "public.User": 3,
-    "public.paul_conversations": 0,
-    "public.paul_messages": 0
+    "public.paul_conversations": 1,
+    "public.paul_media_files": 2,
+    "public.paul_messages": 8
   },
   "schemas": [
     "auth",

@@ -68,7 +68,7 @@ async function processTextModule(
 /**
  * Build system prompt with media guardrails in the SYSTEM message (not user message).
  */
-function buildSystemPrompt(taskType: TaskType): string {
+export function buildSystemPrompt(taskType: TaskType): string {
   const base = MODULE_SYSTEM_PROMPTS[taskType] || MODULE_SYSTEM_PROMPTS.chat;
   return base + '\n\nRègles absolues :\n- Tu ne génères JAMAIS d\'images, de vidéos ou d\'audio. Tu es un module TEXTE uniquement.\n- Si l\'utilisateur demande un média, réponds normalement à sa question textuelle sans mentionner les médias.\n- Ne dis JAMAIS qu\'un média a été généré si ce n\'est pas le cas.';
 }

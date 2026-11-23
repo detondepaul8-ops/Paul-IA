@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useChatStore } from '@/lib/chat-store';
 import Sidebar from './sidebar';
 import MessageList from './message-list';
 import ChatInput from './chat-input';
+import VoiceMode from './voice-mode';
 import { Button } from '@/components/ui/button';
-import { Menu, Settings, MoreVertical } from 'lucide-react';
+import { Menu, Settings, MoreVertical, Mic } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,7 @@ export default function ChatContainer() {
     setCurrentConversation,
     clearMessages,
   } = useChatStore();
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   // Load conversations on mount
   useEffect(() => {
@@ -94,27 +96,39 @@ export default function ChatContainer() {
             </Button>
             <div>
               <h1 className="font-semibold text-foreground text-sm">Paul IA</h1>
-              <p className="text-xs text-muted-foreground">Assistant multimédia — Texte, Images, Vidéos, Audio</p>
+              <p className="text-xs text-muted-foreground">Assistant universel — Texte, Voix, Images, Vidéos, Audio, Fichiers</p>
             </div>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9">
-                <MoreVertical className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={handleClearChat}>
-                Nouvelle conversation
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
-                <Settings className="mr-2 h-4 w-4" />
-                Paramètres (bientôt)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={() => setVoiceOpen(true)}
+              aria-label="Mode vocal"
+              title="Conversation vocale en direct"
+            >
+              <Mic className="h-5 w-5" />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={handleClearChat}>
+                  Nouvelle conversation
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Paramètres (bientôt)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </header>
 
         {/* Messages */}
@@ -122,6 +136,9 @@ export default function ChatContainer() {
 
         {/* Input */}
         <ChatInput />
+
+        {/* Mode vocal plein écran */}
+        <VoiceMode open={voiceOpen} onClose={() => setVoiceOpen(false)} />
       </main>
     </div>
   );

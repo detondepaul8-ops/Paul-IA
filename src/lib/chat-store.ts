@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ClientMediaType = 'image' | 'video' | 'audio' | null;
+export type ClientMediaType = 'image' | 'video' | 'audio' | 'file' | null;
 
 export interface Message {
   id: string;

@@ -1,0 +1,102 @@
+{
+ "schemas": [
+  "auth",
+  "celtiis",
+  "celtiis_backup",
+  "extensions",
+  "graphql",
+  "graphql_public",
+  "information_schema",
+  "public",
+  "realtime",
+  "storage",
+  "vault"
+ ],
+ "public_tables": [
+  "AIProvider",
+  "ApiKey",
+  "AuditLog",
+  "CreditTransaction",
+  "MomoTransaction",
+  "ProviderErrorLog",
+  "QueryLog",
+  "SearchTool",
+  "SearchToolErrorLog",
+  "Subscription",
+  "TermsAcceptance",
+  "User",
+  "paul_conversations",
+  "paul_media_files",
+  "paul_messages"
+ ],
+ "row_counts": {
+  "public.AIProvider": 9,
+  "public.CreditTransaction": 2,
+  "public.ProviderErrorLog": 7,
+  "public.QueryLog": 1,
+  "public.Subscription": 1,
+  "public.User": 3,
+  "public.paul_conversations": 1,
+  "public.paul_media_files": 2,
+  "public.paul_messages": 8
+ },
+ "celtiis_ai_columns": {
+  "ai_conversations": [
+   "id:text",
+   "userId:text",
+   "title:text",
+   "createdAt:timestamp without time zone",
+   "updatedAt:timestamp without time zone"
+  ],
+  "ai_messages": [
+   "id:text",
+   "conversationId:text",
+   "role:text",
+   "content:text",
+   "mode:text",
+   "attachments:text",
+   "createdAt:timestamp without time zone"
+  ],
+  "file_analyses": [
+   "id:text",
+   "fileId:text",
+   "login:text",
+   "preRegId:text",
+   "isTeamMember:boolean",
+   "rowData:text",
+   "createdAt:timestamp without time zone"
+  ],
+  "imported_files": [
+   "id:text",
+   "fileName:text",
+   "originalName:text",
+   "fileSize:integer",
+   "importedBy:text",
+   "periodLabel:text",
+   "sheetName:text",
+   "loginColumn:text",
+   "columnsDetected:text",
+   "rowCount:integer",
+   "teamMatchCount:integer",
+   "teamMissCount:integer",
+   "status:text",
+   "errorDetail:text",
+   "createdAt:timestamp without time zone"
+  ],
+  "app_settings": [
+   "id:text",
+   "key:text",
+   "value:text"
+  ]
+ },
+ "paul_rls_policies": [
+  "paul_conversations/paul_all_conversations[ALL]",
+  "paul_messages/paul_all_messages[ALL]"
+ ],
+ "buckets": [
+  {
+   "id": "paul-media",
+   "public": true
+  }
+ ]
+}
