@@ -21,6 +21,7 @@ export interface VideoStepState {
   tries: number[];
   lockAt?: number;
   done?: boolean;
+  videoUrl?: string;
 }
 
 const MAX_TRIES_PER_SCENE = 4;
@@ -73,7 +74,25 @@ export async function advanceVideoSteps(taskId: string): Promise<void> {
 
   let state: VideoStepState;
   try { state = JSON.parse(task.result || '{}'); } catch { return; }
-  if (!state.scenePromptsList?.length || state.done) return;
+  if (!state.scenePromptsList?.length) return;
+
+  // IDEMPOTENCE : un poll précédent peut avoir été coupé par la limite de
+  // 60 s entre l'assemblage du MP4 et la livraison finale. Le poll suivant
+  // FINALISE au lieu de laisser la tâche bloquée à jamais.
+  if (state.done) {
+    let url = state.videoUrl;
+    if (!url && task.startedAt) {
+      const file = await db.paul_MediaFile.findFirst({
+        where: { mediaType: 'video', createdAt: { gte: task.startedAt } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (file) url = `/api/media/${file.id}`;
+    }
+    if (url) {
+      await deliverFinishedTask(taskId, task.conversationId, state, url);
+    }
+    return;
+  }
 
   // Verrou optimiste : un seul poll travaille à la fois.
   const locked: VideoStepState = { ...state, lockAt: Date.now() };
@@ -166,39 +185,16 @@ export async function advanceVideoSteps(taskId: string): Promise<void> {
     const stored = await saveMediaFromBase64(video.mp4.toString('base64'), 'video');
     if (!stored?.url) throw new Error('enregistrement de la vidéo impossible');
     locked.done = true;
+    locked.videoUrl = stored.url;
     await saveState(locked);
     await logEvent(taskId, {
       step: 'assembler',
       label: `MP4 assemblé et vérifié : ${video.totalSeconds}s, ${framesBase64.length} scènes réelles.`,
       status: 'done',
     });
-    await logEvent(taskId, {
-      step: 'livrer',
-      label: 'Votre vidéo est prête : le fichier est livré ci-dessous.',
-      status: 'done',
-      detail: stored.url,
-    });
-    await db.paul_Task.update({ where: { id: taskId }, data: { progress: 100 } });
-    await finishTask(taskId, {
-      status: 'succeeded',
-      result: stored.url,
-      summary: locked.description,
-      providerDetails: { providers: ['moteur interne'], agents: [], errors: [] },
-    });
-    // Livraison PERSISTÉE : la vidéo reste dans l'historique de la
-    // conversation, même après un rechargement de la page.
-    if (task.conversationId) {
-      await db.paul_Message.create({
-        data: {
-          conversationId: task.conversationId,
-          role: 'assistant',
-          content: `Votre vidéo est prête : ${locked.description}`,
-          module: 'video',
-          mediaUrl: stored.url,
-          mediaType: 'video',
-        },
-      });
-    }
+    // Livraison finalisée par une fonction commune, idempotente : si cette
+    // fonction est coupée ici, le prochain poll la rejouera proprement.
+    await deliverFinishedTask(taskId, task.conversationId, locked, stored.url);
   } catch (e) {
     await logEvent(taskId, {
       step: 'assembler',
@@ -206,6 +202,48 @@ export async function advanceVideoSteps(taskId: string): Promise<void> {
       status: 'warning',
     });
     await finishWithKeyFrame(taskId, locked, `assemblage impossible (${(e as Error).message.slice(0, 80)})`, task.conversationId);
+  }
+}
+
+/** Livraison finale commune et IDEMPOTENTE : événements, statut succeeded,
+ *  message persisté dans la conversation. Si un appel est coupé, le poll
+ *  suivant la rejoue sans dupliquer le média livré. */
+async function deliverFinishedTask(
+  taskId: string,
+  conversationId: string | null | undefined,
+  state: VideoStepState,
+  url: string
+): Promise<void> {
+  await logEvent(taskId, {
+    step: 'livrer',
+    label: 'Votre vidéo est prête : le fichier est livré ci-dessous.',
+    status: 'done',
+    detail: url,
+  });
+  await db.paul_Task.update({ where: { id: taskId }, data: { progress: 100 } });
+  await finishTask(taskId, {
+    status: 'succeeded',
+    result: url,
+    summary: state.description,
+    providerDetails: { providers: ['moteur interne'], agents: [], errors: [] },
+  });
+  if (conversationId) {
+    const alreadyDelivered = await db.paul_Message.findFirst({
+      where: { conversationId, mediaUrl: url, mediaType: 'video' },
+      select: { id: true },
+    });
+    if (!alreadyDelivered) {
+      await db.paul_Message.create({
+        data: {
+          conversationId,
+          role: 'assistant',
+          content: `Votre vidéo est prête : ${state.description}`,
+          module: 'video',
+          mediaUrl: url,
+          mediaType: 'video',
+        },
+      });
+    }
   }
 }
 
