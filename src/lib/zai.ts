@@ -30,15 +30,35 @@ export async function chatCompletion(
   messages: ChatMessage[],
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const zai = await getZAI();
-  const completion = await zai.chat.completions.create({
-    messages,
-    model: process.env.ZAI_MODEL || undefined,
-    thinking: { type: 'disabled' },
-    temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? 4096,
-  });
-  return completion.choices?.[0]?.message?.content ?? '';
+  try {
+    const zai = await getZAI();
+    const completion = await zai.chat.completions.create({
+      messages,
+      model: process.env.ZAI_MODEL || undefined,
+      thinking: { type: 'disabled' },
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens ?? 4096,
+    });
+    const content = completion.choices?.[0]?.message?.content;
+    if (content && content.trim()) return content;
+    throw new Error('Z.ai a renvoyé une réponse vide');
+  } catch (error) {
+    // Architecture d'autonomie : Z AI n'est qu'un renfort. En cas d'échec
+    // (crédits épuisés, indisponibilité, coupure) → Groq puis moteur interne.
+    console.error('Z.ai chat failed, activating fallbacks:', error instanceof Error ? error.message : error);
+    try {
+      const { groqChat } = await import('./autonomy/free-llm');
+      const groq = await groqChat(messages, options);
+      console.error('Fallback LLM: Groq OK');
+      return groq;
+    } catch (groqError) {
+      console.error('Groq fallback failed:', groqError instanceof Error ? groqError.message : groqError);
+    }
+    const { freeLLMChat } = await import('./autonomy/free-llm');
+    const internal = await freeLLMChat(messages, options);
+    console.error('Fallback LLM: moteur interne OK');
+    return internal;
+  }
 }
 
 export async function chatCompletionStream(
@@ -46,29 +66,44 @@ export async function chatCompletionStream(
   onChunk: (text: string) => void,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const zai = await getZAI();
-  const response = await zai.chat.completions.create({
-    messages,
-    stream: true,
-    model: process.env.ZAI_MODEL || undefined,
-    thinking: { type: 'disabled' },
-    temperature: options?.temperature ?? 0.7,
-    max_tokens: options?.maxTokens ?? 4096,
-  });
+  try {
+    const zai = await getZAI();
+    const response = await zai.chat.completions.create({
+      messages,
+      stream: true,
+      model: process.env.ZAI_MODEL || undefined,
+      thinking: { type: 'disabled' },
+      temperature: options?.temperature ?? 0.7,
+      max_tokens: options?.maxTokens ?? 4096,
+    });
 
-  let fullText = '';
+    let fullText = '';
 
-  if (response && typeof response === 'object' && Symbol.asyncIterator in response) {
-    for await (const chunk of response as AsyncIterable<any>) {
-      const delta = chunk?.choices?.[0]?.delta?.content;
-      if (delta) {
-        fullText += delta;
-        onChunk(delta);
+    if (response && typeof response === 'object' && Symbol.asyncIterator in response) {
+      for await (const chunk of response as AsyncIterable<any>) {
+        const delta = chunk?.choices?.[0]?.delta?.content;
+        if (delta) {
+          fullText += delta;
+          onChunk(delta);
+        }
       }
     }
+    if (fullText.trim()) return fullText;
+    throw new Error('Z.ai stream vide');
+  } catch (error) {
+    // Repli autonome : réponse complète du moteur interne, émise en un seul
+    // passage (le streaming avancé est un confort, pas une condition).
+    console.error('Z.ai stream failed, using internal engine:', error instanceof Error ? error.message : error);
+    const { groqChat, freeLLMChat } = await import('./autonomy/free-llm');
+    let text = '';
+    try {
+      text = await groqChat(messages, options);
+    } catch {
+      text = await freeLLMChat(messages, options);
+    }
+    onChunk(text);
+    return text;
   }
-
-  return fullText;
 }
 
 // ── Image ─────────────────────────────────────────────────────────────────
@@ -85,8 +120,9 @@ export async function generateImage(prompt: string, size?: string): Promise<stri
     const item = response.data?.[0];
     if (item?.base64) return item.base64;
     // Public Z.ai API returns a URL instead of base64 — download it.
-    if (item?.url) {
-      const res = await fetch(item.url);
+    const anyItem = item as any;
+    if (anyItem?.url) {
+      const res = await fetch(anyItem.url);
       if (res.ok) {
         const buf = Buffer.from(await res.arrayBuffer());
         if (buf.length > 0) return buf.toString('base64');

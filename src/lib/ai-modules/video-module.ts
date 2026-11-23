@@ -1,11 +1,13 @@
 // ── Video Module ──────────────────────────────────────────────────────────
-// Handles REAL video generation via async API with polling.
-// Si les crédits vidéo Z.ai sont indisponibles (code 1113), repli réel :
-// une image clé du scénario est générée (CogView, secours Pollinations)
-// et l'erreur exacte est expliquée à l'utilisateur.
+// 1. Vidéo Z.ai (CogVideoX, async + polling) quand les crédits existent.
+// 2. Sinon → MOTEUR INTERNE AUTONOME : MP4 H.264 RÉEL encodé par ffmpeg
+//    embarqué (keyframes du moteur interne, Ken Burns, fondus), SANS Z AI
+//    ni GROQ ni crédit. 3. Image clé (CogView/Pollinations). 4. Message exact.
 
 import { createVideoTask, getVideoResult, chatCompletion, generateImage, ZaiApiError, isInsufficientBalanceError } from '../zai';
 import { saveMediaFromBase64 } from '../media-storage';
+import { internalVideo } from '../autonomy/internal-media';
+import { verifyMp4 } from '../autonomy/selfcheck';
 import { MODULE_SYSTEM_PROMPTS } from '../ai-router';
 import type { TaskType } from '../ai-router';
 
@@ -38,10 +40,10 @@ export async function processVideoRequest(userMessage: string): Promise<VideoMod
   } catch (error) {
     console.error('Video task creation failed:', error);
 
-    // Crédits vidéo insuffisants (code 1113) : repli réel sur l'image clé
-    // du scénario + explication exacte, au lieu d'un échec générique.
+    // Crédits vidéo insuffisants (code 1113) → moteur interne autonome :
+    // vraie vidéo MP4 produite par Paul IA elle-même, puis image clé.
     if (isInsufficientBalanceError(error)) {
-      return await keyFrameFallback(userMessage, scenario,
+      return await internalVideoFallback(userMessage, scenario,
         "Le compte Z.ai ne dispose pas actuellement de crédits de génération vidéo (code 1113 : « Insufficient balance or no resource package »).");
     }
 
@@ -58,12 +60,8 @@ export async function processVideoRequest(userMessage: string): Promise<VideoMod
     } catch (retryError) {
       console.error('Video task creation retry failed:', retryError);
       const detail = retryError instanceof ZaiApiError ? ` Cause exacte : ${retryError.message}.` : '';
-      return {
-        content: `La création de la tâche vidéo a échoué côté service de génération.${detail} Le scénario a été préparé avec succès : reformulez votre demande dans quelques instants, ou reformulez-la en demande d'image (« génère une image : … ») qui fonctionne sans crédits vidéo.`,
-        module: 'video',
-        mediaUrl: null,
-        mediaType: null,
-      };
+      return await internalVideoFallback(userMessage, scenario,
+        `la création de la tâche CogVideoX a échoué côté Z.ai.${detail}`);
     }
   }
 
@@ -102,8 +100,41 @@ export async function processVideoRequest(userMessage: string): Promise<VideoMod
   };
 }
 
-/** Repli réel quand la vidéo est indisponible : image clé du scénario
- *  (pipeline image complet : CogView puis Pollinations), message exact. */
+/** Repli AUTONOME : vraie vidéo MP4 par le moteur interne (ffmpeg embarqué,
+ *  keyframes sans clé ni crédit), puis image clé, puis message exact. */
+async function internalVideoFallback(
+  userMessage: string,
+  scenario: { prompt: string; description: string },
+  cause: string
+): Promise<VideoModuleResult> {
+  try {
+    const video = await internalVideo({
+      prompt: scenario.prompt,
+      scenes: 3,
+      size: '1280x720',
+      secondsPerScene: 3,
+      timeoutMs: 40000,
+    });
+    const check = verifyMp4(video.mp4);
+    if (check.ok) {
+      const stored = await saveMediaFromBase64(video.mp4.toString('base64'), 'video');
+      if (stored?.url) {
+        return {
+          content: `${scenario.description}\n\nLa vidéo ci-dessous a été produite par le MOTEUR INTERNE de Paul IA (rendu MP4 ${video.totalSeconds}s, ${video.scenes} scènes, encodage H.264 local), sans recours aux services externes de génération vidéo. Cause du repli : ${cause}`,
+          module: 'video',
+          mediaUrl: stored.url,
+          mediaType: 'video',
+        };
+      }
+    }
+    console.error('Internal video failed checks:', check);
+  } catch (internalError) {
+    console.error('Internal video engine failed:', internalError);
+  }
+  return keyFrameFallback(userMessage, scenario, cause);
+}
+
+/** Repli réel : image clé du scénario (CogView puis Pollinations). */
 async function keyFrameFallback(
   userMessage: string,
   scenario: { prompt: string; description: string },
