@@ -4,6 +4,21 @@ import type { TaskType, RouteResult } from './ai-router';
 
 const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[] = [
   {
+    // Documents et tableaux de données = service réel via les blocs d'action du
+    // module chat (génération Excel/PDF). Priorité au-dessus des médias : une
+    // « image Excel », un « tableau PDF » ou un « fais-moi un tableau de données »
+    // ne doit JAMAIS aller vers la génération d'image.
+    type: 'chat',
+    patterns: [
+      /\b(excel|xlsx|csv|spreadsheet|feuille\s+de\s+calcul|tableau\s+de\s+données)\b/i,
+      /\b(docx|document\s+(word|pdf)|fichier\s+(excel|pdf|word))\b/i,
+      /\b(tableau|fichier|document|rapport|liste|classement|bilan|suivi)\b[^\n]{0,60}\b(excel|xlsx|csv|pdf|word|docx|données)\b/i,
+      /\b(excel|xlsx|csv|pdf|word|docx)\b[^\n]{0,60}\b(tableau|fichier|document|rapport|liste|export)\b/i,
+      /\b(transforme|converti[s]?|exporte)\b[^\n]{0,40}\b(pdf|excel|docx|xlsx)\b/i,
+    ],
+    priority: 7,
+  },
+  {
     type: 'video',
     patterns: [
       /\b(vidéo|video|animation|clip|film|movie|animé|animée|motion)\b/i,
