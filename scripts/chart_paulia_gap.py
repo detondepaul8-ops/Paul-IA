@@ -11,19 +11,20 @@ import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['Noto Sans SC', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-# (capacité, état) — constaté lors de l'audit : code source PAUL IA + production pia-chat.vercel.app
+# (capacité, état) — état après intégration du 23/11/2026 (vague 1 vérifiée en production)
 caps = [
     ("Conversation IA (GLM, 7 modules)", "Opérationnel"),
     ("Génération d'images (CogView / Pollinations)", "Opérationnel"),
     ("Stockage média (Supabase Storage / base)", "Opérationnel"),
+    ("Recherche Internet (3 canaux + sources)", "Opérationnel"),
+    ("Documents Excel / PDF générés réellement", "Opérationnel"),
+    ("Reconnaissance vocale (STT, 4 canaux)", "Opérationnel"),
+    ("Conversation vocale directe (orbe, barge-in)", "Opérationnel"),
+    ("Analyse d'images transmises (vision)", "Opérationnel"),
     ("Génération vidéo (tâche asynchrone)", "Partiel"),
     ("Synthèse vocale TTS (z.ai / fallback)", "Partiel"),
-    ("Reconnaissance vocale (STT)", "Absent"),
-    ("Conversation vocale temps réel", "Absent"),
     ("Authentification / comptes utilisateurs", "Absent"),
-    ("Analyse de fichiers transmis", "Absent"),
-    ("Recherche Internet", "Absent"),
-    ("Documents PDF / DOCX / XLSX", "Absent"),
+    ("Analyse de documents (PDF/DOCX/XLSX reçus)", "Absent"),
     ("Exécution d'agent / création d'applications", "Absent"),
 ]
 colors = {"Opérationnel": "#7BA68A", "Partiel": "#C8B87C", "Absent": "#B87472"}
