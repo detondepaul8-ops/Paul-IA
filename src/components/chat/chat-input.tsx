@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { SendHorizontal, Paperclip, X } from 'lucide-react';
 import { useChatStore } from '@/lib/chat-store';
+import { isComplexRequest } from '@/lib/agent-detect';
 
 interface PendingImage { mime: string; dataBase64: string; preview: string }
 
@@ -14,7 +15,7 @@ export default function ChatInput() {
   const fileRef = useRef<HTMLInputElement>(null);
   const {
     isLoading, setIsLoading,
-    addMessage, updateMessage,
+    addMessage, updateMessage, setActiveTaskId,
     currentConversationId, setCurrentConversation,
     messages, addConversation,
   } = useChatStore();
@@ -68,6 +69,35 @@ export default function ChatInput() {
     addMessage({ id: loadingId, role: 'assistant', content: '', isLoading: true });
 
     setIsLoading(true);
+
+    // ── Demande complexe : PAUL IA mobilise ses agents parallèles ──
+    // La tâche est créée immédiatement (taskId) puis exécutée en
+    // arrière-plan : le panneau de suivi affiche chaque étape réelle.
+    if (trimmed && !sentImages.length && isComplexRequest(trimmed)) {
+      try {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: trimmed, conversationId: currentConversationId }),
+        });
+        const data = await res.json();
+        if (res.ok && data.taskId) {
+          setActiveTaskId(data.taskId);
+          updateMessage(loadingId, {
+            content: 'Je mobilise mes agents parallèles sur votre demande. Le plan et l\'avancement s\'affichent ci-dessus — le résultat et le compte rendu suivront à la fin de l\'exécution.',
+            module: 'agents',
+            isLoading: false,
+          });
+          if (!currentConversationId && data.conversationId) {
+            setCurrentConversation(data.conversationId);
+          }
+          return;
+        }
+        // 422 : pas une demande d'agents → on poursuit via le chat classique
+      } catch {
+        /* repli chat classique */
+      }
+    }
 
     try {
       const history = messages

@@ -68,6 +68,11 @@ export async function freeLLMChat(
         if (!res.ok) throw new FreeLLMError(`canal ${channel.kind}/${channel.kind === 'post' ? channel.model : 'get'} HTTP ${res.status}`);
         const text = channel.kind === 'post' ? (await res.json())?.choices?.[0]?.message?.content : await res.text();
         if (typeof text !== 'string' || !text.trim()) throw new FreeLLMError('réponse vide du moteur interne');
+        // Garde-fous contre les réponses parasites (page HTML renvoyée par un
+        // canal dégradé, réponse hors proportion) : rejet et canal suivant.
+        if (channel.kind === 'get' && (/<html[\s>]|<!doctype html/i.test(text) || text.length > 60_000)) {
+          throw new FreeLLMError('réponse parasite du canal GET (HTML ou hors proportion)');
+        }
         return text.trim();
       } catch (error) {
         lastErrors.push(error instanceof Error ? error.message : String(error));

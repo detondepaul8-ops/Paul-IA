@@ -37,6 +37,10 @@ interface ChatStore {
   updateMessage: (id: string, updates: Partial<Message>) => void;
   removeMediaFromMessage: (messageId: string) => void;
 
+  // Suivi temps réel d'une tâche d'agents (PAUL IA MONITOR)
+  activeTaskId: string | null;
+  setActiveTaskId: (id: string | null) => void;
+
   // UI State
   isLoading: boolean;
   sidebarOpen: boolean;
@@ -66,6 +70,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     })),
 
   messages: [],
+  activeTaskId: null,
+  setActiveTaskId: (id) => set({ activeTaskId: id }),
   setMessages: (messages) => set({ messages }),
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),

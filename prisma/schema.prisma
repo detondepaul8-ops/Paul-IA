@@ -64,3 +64,45 @@ model paul_AiFile {
 
   @@map("paul_ai_files")
 }
+
+// ── PAUL IA MONITOR : tâches longues + suivi temps réel ────────────────
+// Tâche complexe : plan annoncé, étapes réelles, agents mobilisés,
+// compte rendu final. Les détails fournisseurs restent côté admin.
+model paul_Task {
+  id              String    @id @default(cuid())
+  conversationId  String?   @map("conversation_id")
+  module          String    @default("agents")
+  title           String
+  request         String    @db.Text
+  status          String    @default("pending") // pending | running | succeeded | partial | failed
+  progress        Int       @default(0) // pourcentage réellement calculé
+  plan            Json      @default("[]") // étapes annoncées au client
+  result          String?   @db.Text
+  summary         String?   @db.Text // compte rendu final automatique
+  providerDetails Json? // RÉSERVÉ ADMIN : fournisseurs, modèles, durées, erreurs
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  durationMs      Int?      @map("duration_ms")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  events          paul_Event[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("paul_tasks")
+}
+
+// Événement réel d'exécution : publié à chaque changement d'étape.
+model paul_Event {
+  id        String   @id @default(cuid())
+  taskId    String   @map("task_id")
+  step      String // identifiant d'étape du plan
+  label     String
+  status    String   @default("done") // pending | running | done | failed | warning
+  detail    String?  @db.Text
+  agentName String?  @map("agent_name") // "Agent parallèle 1", "Agent de vérification"
+  createdAt DateTime @default(now()) @map("created_at")
+  task      paul_Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("paul_events")
+}

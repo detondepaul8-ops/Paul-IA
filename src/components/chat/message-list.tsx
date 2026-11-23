@@ -19,6 +19,7 @@ const MODULE_BADGES: Record<string, string> = {
   video: 'bg-rose-500/15 text-rose-400 border-rose-500/25',
   audio: 'bg-violet-500/15 text-violet-400 border-violet-500/25',
   project: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
+  agents: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25',
 };
 
 const MODULE_ICONS: Record<string, string> = {
@@ -144,6 +145,7 @@ export default function MessageList() {
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6">
+      <TaskProgress />
       <div className="max-w-3xl mx-auto space-y-6">
         {messages.map((message, idx) => {
               // Find the preceding user message for regeneration

@@ -5,6 +5,8 @@ import { processMessage, fallbackResponse, buildSystemPrompt } from '@/lib/ai-mo
 import { processPaulActions, PAUL_ACTIONS_INSTRUCTIONS } from '@/lib/paul-actions';
 import { chatCompletion } from '@/lib/zai';
 import type { ChatMessage } from '@/lib/zai';
+import { shouldOrchestrate, createTask, logEvent, finishTask, getTaskView, buildFinalReport, sanitizeForClient } from '@/lib/monitor';
+import { startAgentTask, executeAgentTask } from '@/lib/agents/orchestrator';
 
 // Image generation needs ~30-50s; the default serverless limit (10s) kills the request.
 export const maxDuration = 60;
@@ -58,6 +60,30 @@ export async function POST(request: NextRequest) {
     // Classify intent (texte seul ; une demande d'analyse d'image reste routée vers chat)
     const routeResult = await classifyIntent(textMessage || 'analyse cette image');
 
+    // ── Demandes complexes : agents parallèles mobilisés par PAUL IA ──
+    let taskId: string | null = null;
+    let mediaReport = '';
+    if (!validImages.length && shouldOrchestrate(textMessage)) {
+      const started = await startAgentTask({ message: textMessage, conversationId: convId });
+      const result = await executeAgentTask(started.taskId);
+      const fullContent = `${result.content}\n\n${result.report}`;
+      await db.paul_Message.create({
+        data: { conversationId: convId, role: 'assistant', content: fullContent, module: 'agents' },
+      });
+      await db.paul_Conversation.update({
+        where: { id: convId },
+        data: { module: 'agents', title: textMessage.slice(0, 60) },
+      });
+      return NextResponse.json({
+        content: fullContent,
+        module: 'agents',
+        conversationId: convId,
+        route: { taskType: 'agents', confidence: 5, reason: 'Demande complexe : agents parallèles mobilisés' },
+        taskId: started.taskId,
+        taskStatus: result.status,
+      });
+    }
+
     // Build history
     const chatHistory: ChatMessage[] = (history || [])
       .filter((h: { role: string }) => h.role === 'user' || h.role === 'assistant')
@@ -106,7 +132,75 @@ export async function POST(request: NextRequest) {
           }
         }
       } else {
-        response = await processMessage(routeResult.taskType, textMessage, chatHistory);
+        // image / video / audio : PAUL IA suit chaque étape réelle du travail
+        const mediaTask = await createTask({
+          title: (textMessage || 'Génération média').slice(0, 100),
+          request: textMessage || 'génération média',
+          module: routeResult.taskType,
+          conversationId: convId,
+          plan: [
+            { id: 'comprendre', label: 'Analyser votre demande' },
+            { id: 'generer', label: 'Générer le média avec mes moteurs' },
+            { id: 'verifier', label: 'Vérifier le fichier produit' },
+            { id: 'livrer', label: 'Enregistrer et vous livrer le résultat' },
+          ],
+        });
+        taskId = mediaTask.id;
+        await logEvent(mediaTask.id, {
+          step: 'comprendre',
+          label: 'J\'analyse votre demande et je prépare les instructions de génération.',
+          detail: textMessage || 'analyse d\'images',
+        });
+        await logEvent(mediaTask.id, {
+          step: 'generer',
+          label: routeResult.taskType === 'video'
+            ? 'Je génère votre vidéo : moteur d\'appui si crédité, sinon moteur interne autonome.'
+            : 'Je génère le média demandé avec mes moteurs internes et d\'appui.',
+          status: 'running',
+        });
+        try {
+          response = await processMessage(routeResult.taskType, textMessage, chatHistory, undefined, validImages);
+        } catch (e) {
+          await logEvent(mediaTask.id, {
+            step: 'generer',
+            label: `Échec de la génération : ${(e as Error).message}`,
+            status: 'failed',
+          });
+          await finishTask(mediaTask.id, {
+            status: 'failed',
+            providerDetails: { providers: ['inconnu'], agents: [], errors: [(e as Error).message] },
+          });
+          throw e;
+        }
+        const okMedia = Boolean(response.mediaUrl);
+        // Identité unique : aucun nom de fournisseur externe dans l'espace client.
+        response = { ...response, content: sanitizeForClient(response.content) };
+        await logEvent(mediaTask.id, {
+          step: 'verifier',
+          label: okMedia
+            ? 'Fichier produit et contrôlé (format, taille) avant livraison.'
+            : 'La génération n\'a pas produit de fichier exploitable — cause réelle expliquée dans la réponse.',
+          status: okMedia ? 'done' : 'failed',
+          detail: response.mediaType ? `type: ${response.mediaType}` : undefined,
+        });
+        await logEvent(mediaTask.id, {
+          step: 'livrer',
+          label: okMedia
+            ? 'Résultat enregistré et livré : consultez-le ci-dessous.'
+            : 'Résultat indisponible : le repli autonome reste à votre disposition.',
+          status: okMedia ? 'done' : 'warning',
+        });
+        const view = await getTaskView(mediaTask.id);
+        mediaReport = view ? buildFinalReport(view) : '';
+        await finishTask(mediaTask.id, {
+          status: okMedia ? 'succeeded' : 'partial',
+          result: response.mediaUrl || undefined,
+          providerDetails: {
+            providers: [/moteur interne/i.test(response.content) ? 'interne' : 'appui externe'],
+            agents: [],
+            errors: okMedia ? [] : ['génération sans fichier exploitable'],
+          },
+        });
       }
     } catch (error) {
       console.error('Module error, fallback:', error);
@@ -117,6 +211,7 @@ export async function POST(request: NextRequest) {
     let file: { id: string; kind: string; filename: string; title: string } | null = null;
     let sources: Array<{ name: string; url: string }> | null = null;
     let finalContent = response.content;
+    if (mediaReport) finalContent += '\n\n' + mediaReport;
     if (response.module === 'chat' || response.module === 'code'
       || response.module === 'content' || response.module === 'project') {
       const actions = await processPaulActions(response.content);
@@ -159,6 +254,7 @@ export async function POST(request: NextRequest) {
       module: response.module,
       conversationId: convId,
       route: routeResult,
+      taskId: taskId || undefined,
       mediaUrl: isFile ? `/api/files?id=${file!.id}` : response.mediaUrl,
       mediaType: isFile ? 'file' : response.mediaType,
       mediaFilename: isFile ? file!.filename : undefined,

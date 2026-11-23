@@ -23,7 +23,17 @@ export interface VideoModuleResult {
 const POLL_INTERVAL_MS = 5000;
 const MAX_POLLS = 10;
 
-export async function processVideoRequest(userMessage: string): Promise<VideoModuleResult> {
+export async function processVideoRequest(
+  userMessage: string,
+  sourceImages?: Array<{ mime: string; dataBase64: string }>
+): Promise<VideoModuleResult> {
+  // ── Mode IMAGE → VIDÉO : une image fournie (upload) est réellement
+  // transformée en vidéo par le moteur interne (mouvement de caméra
+  // Ken Burns, encodage H.264 local). Aucun service payant nécessaire.
+  if (sourceImages?.length && sourceImages[0]?.dataBase64) {
+    return await imageToVideo(userMessage, sourceImages[0].dataBase64);
+  }
+
   // Step 1: Generate a detailed video scenario/prompt
   const scenario = await generateVideoScenario(userMessage);
 
@@ -44,7 +54,7 @@ export async function processVideoRequest(userMessage: string): Promise<VideoMod
     // vraie vidéo MP4 produite par Paul IA elle-même, puis image clé.
     if (isInsufficientBalanceError(error)) {
       return await internalVideoFallback(userMessage, scenario,
-        "Le compte Z.ai ne dispose pas actuellement de crédits de génération vidéo (code 1113 : « Insufficient balance or no resource package »).");
+        "Le moteur d'appui externe n'est pas actuellement crédité pour la génération vidéo (code 1113 : « Insufficient balance or no resource package »).");
     }
 
     // Autre erreur : une tentative avec le modèle de second choix, puis échec honnête
@@ -100,6 +110,44 @@ export async function processVideoRequest(userMessage: string): Promise<VideoMod
   };
 }
 
+/** Mode IMAGE → VIDÉO réel : l'image fournie devient une vidéo MP4 avec
+ *  mouvement de caméra (Ken Burns), produite et vérifiée localement.
+ *  Aucune fausse réussite : en cas d'échec, la cause technique réelle
+ *  est expliquée et aucune vidéo n'est annoncée. */
+async function imageToVideo(
+  userMessage: string,
+  imageBase64: string
+): Promise<VideoModuleResult> {
+  try {
+    const video = await internalVideo({
+      prompt: userMessage,
+      imageBase64,
+      scenes: 1,
+      size: '1280x720',
+      secondsPerScene: 5,
+      timeoutMs: 40000,
+    });
+    const check = verifyMp4(video.mp4);
+    if (!check.ok) throw new Error('fichier MP4 produit non conforme : ' + check.checks.filter(c => !c.ok).map(c => c.name).join(', '));
+    const stored = await saveMediaFromBase64(video.mp4.toString('base64'), 'video');
+    if (!stored?.url) throw new Error('enregistrement de la vidéo impossible');
+    return {
+      content: `Votre vidéo est prête ci-dessous : elle a été créée réellement À PARTIR DE VOTRE IMAGE par le moteur interne de Paul IA — mouvement de caméra (zoom progressif avant/arrière), fondu d'ouverture, rendu MP4 ${video.totalSeconds}s en 1280x720 (H.264), vérifié avant livraison.`,
+      module: 'video',
+      mediaUrl: stored.url,
+      mediaType: 'video',
+    };
+  } catch (error) {
+    const cause = (error as Error).message.slice(0, 300);
+    return {
+      content: `La transformation de votre image en vidéo n'a pas abouti cette fois. Cause technique réelle : ${cause}. Aucune vidéo n'a été produite — je ne prétends pas le contraire. Vous pouvez : (1) réessayer maintenant, (2) demander une vidéo texte-vers-vidéo sur le même thème (« crée une vidéo : … ») — le moteur interne autonome produira un MP4 réel, (3) réenvoyer votre image si elle est très grande (l'optimale est ≤ 4 Mo).`,
+      module: 'video',
+      mediaUrl: null,
+      mediaType: null,
+    };
+  }
+}
+
 /** Repli AUTONOME : vraie vidéo MP4 par le moteur interne (ffmpeg embarqué,
  *  keyframes sans clé ni crédit), puis image clé, puis message exact. */
 async function internalVideoFallback(
@@ -146,7 +194,7 @@ async function keyFrameFallback(
       const stored = await saveMediaFromBase64(base64, 'image');
       if (stored?.url) {
         return {
-          content: `La vidéo n'a pas pu être lancée : ${cause}\n\nEn attendant, voici l'IMAGE CLÉ de votre scénario, générée réellement : ${scenario.description}\n\nPour débloquer la vidéo complète, rechargez les crédits vidéo du compte Z.ai (modèle CogVideoX). En attendant, vous pouvez obtenir une séquence en demandant plusieurs images (« génère une image : … »).`,
+          content: `La vidéo n'a pas pu être lancée : ${cause}\n\nEn attendant, voici l'IMAGE CLÉ de votre scénario, générée réellement : ${scenario.description}\n\nPour débloquer la vidéo complète par le moteur d'appui, rechargez ses crédits vidéo. Le moteur interne autonome reste disponible : il a déjà produit des MP4 réels sans aucun service externe.`,
           module: 'video',
           mediaUrl: stored.url,
           mediaType: 'image',

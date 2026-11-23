@@ -24,6 +24,11 @@ const INTENT_PATTERNS: { type: TaskType; patterns: RegExp[]; priority: number }[
       /\b(vidéo|video|animation|clip|film|movie|animé|animée|motion)\b/i,
       /\b(crée|génère|fabrique|produis|make|create|generate)\s+(un|une|a|an)?\s*(vidéo|video|clip|film|animation|movie)\b/i,
       /\b(génère|crée)\s+(une\s+)?(animation|séquence|scène)\s+(vidéo|animée)?\b/i,
+      // ── Image → vidéo : transformer / animer une image fournie ──
+      /\b(anime[rz]?|mett?re?\s+en\s+mouvement|donner?\s+vie)\b[^.\n]{0,40}\b(image|photo|dessin|illustration|visuel|tableau|portrait)\b/i,
+      /\b(image|photo|dessin|illustration)\b[^.\n]{0,40}\b(vidéo|video|animation|animée?|clip|mouvement)\b/i,
+      /\b(transforme|converti[sz]?|passe[sz]?|met[sz]?)\b[^.\n]{0,30}\b(image|photo)\b[^.\n]{0,30}\b(vidéo|video|animation|clip)\b/i,
+      /\b(vidéo|video|animation|clip)\b[^.\n]{0,60}\b(à\s+partir\s+de|depuis|avec)\b[^.\n]{0,30}\b(image|photo)\b/i,
     ],
     priority: 6,
   },
