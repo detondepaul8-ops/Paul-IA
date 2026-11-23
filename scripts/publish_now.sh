@@ -57,6 +57,7 @@ curl -s --max-time 60 "$PROD/api/bootstrap" | head -c 200; echo ""
 echo "── 4/5 TESTS MÉDIA EN PRODUCTION ──"
 curl -s --max-time 90 -X POST "$PROD/api/chat" -H "Content-Type: application/json" \
   -d '{"message":"génère une image : coucher de soleil sur le lac Nokoué, photographie professionnelle"}' > /tmp/prod_img.json
+sleep 10  # la source d'images ouverte limite le débit par IP : on laisse respirer
 curl -s --max-time 90 -X POST "$PROD/api/chat" -H "Content-Type: application/json" \
   -d '{"message":"crée une vidéo : un oiseau coloré vole au-dessus d une forêt verdoyante, caméra suivante"}' > /tmp/prod_vid.json
 python3 -c "

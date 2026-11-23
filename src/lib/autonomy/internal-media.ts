@@ -219,31 +219,37 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
       engines.push('image fournie');
     } else {
       // Mode texte → vidéo : keyframes RÉELLES uniquement — jamais de contenu
-      // abstrait. Source 1 : modèles image ouverts (sans clé). Source 2 : le
-      // moteur image d'appui pour les scènes manquantes. Si aucune image
-      // réelle n'est obtenable, la vidéo est REFUSÉE (pas de contenu vide).
+      // abstrait. SÉQUENTIEL obligatoire : la source ouverte limite le débit
+      // par IP, et des requêtes parallèles se font mutuellement échouer
+      // (constaté en production : 0/2 scènes en parallèle, réussite seule).
       const prompts = scenePrompts(opts.prompt, scenes);
-      const results = await Promise.allSettled(
-        prompts.map((p) => internalImage(p, `${w}x${h}`, Math.max(24000, budget - (Date.now() - started) - 12000)))
-      );
       const realFrames: GeneratedImage[] = [];
       const failedPrompts: string[] = [];
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') realFrames.push(r.value);
-        else failedPrompts.push(prompts[i]);
-      });
-      const openCount = realFrames.length;
-      if (openCount > 0) engines.push(`moteur image ouvert (${openCount}/${scenes} scènes)`);
+      for (const p of prompts) {
+        const remaining = budget - (Date.now() - started);
+        if (remaining < 12000) break;
+        try {
+          const img = await internalImage(p, `${w}x${h}`, Math.min(16000, Math.max(12000, remaining - 12000)));
+          realFrames.push(img);
+        } catch {
+          failedPrompts.push(p);
+        }
+      }
+      if (realFrames.length > 0) engines.push(`moteur image ouvert (${realFrames.length}/${scenes} scènes)`);
 
       if (opts.useCogFallback && failedPrompts.length > 0 && realFrames.length < scenes) {
-        const cogBudget = Math.max(6000, Math.min(12000, budget - (Date.now() - started) - 16000));
-        const cogResults = await Promise.allSettled(
-          failedPrompts.map((p) => cogImage(`${p}, cinematic still frame, highly detailed`, `${w}x${h}`, cogBudget))
-        );
-        const cogOk = cogResults.filter(
-          (r): r is PromiseFulfilledResult<GeneratedImage> => r.status === 'fulfilled'
-        );
-        for (const r of cogOk) realFrames.push(r.value);
+        const cogOk: GeneratedImage[] = [];
+        for (const p of failedPrompts) {
+          const remaining = budget - (Date.now() - started);
+          if (remaining < 10000) break;
+          try {
+            const img = await cogImage(`${p}, cinematic still frame, highly detailed`, `${w}x${h}`, Math.min(8000, remaining - 6000));
+            cogOk.push(img);
+            realFrames.push(img);
+          } catch {
+            // scène définitivement perdue : on continue avec les suivantes
+          }
+        }
         if (cogOk.length > 0) engines.push(`moteur image d'appui (${cogOk.length}/${failedPrompts.length} scènes)`);
       }
 
