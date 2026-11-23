@@ -19,18 +19,86 @@ export interface GeneratedImage {
   engine: string;
 }
 
-/** Image de qualité professionnelle sans clé ni crédit (modèle ouvert Flux). */
+const IMAGE_MODELS = ['flux', 'flux-realism', 'turbo', ''];
+
+/** Image via les modèles ouverts publics — cascade de variantes pour
+ *  survivre aux limites par IP/modèle (402/503 momentanés). */
 export async function internalImage(prompt: string, size = '1280x720', timeoutMs = 45000): Promise<GeneratedImage> {
   const [w, h] = size.split('x').map((n) => parseInt(n, 10) || 1024);
   const seed = Math.floor(Math.random() * 1_000_000);
-  const url =
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${w}&height=${h}` +
-    `&nologo=true&model=flux&seed=${seed}&referrer=paul-ia`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-  if (!res.ok) throw new Error(`moteur image interne HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length < 1000) throw new Error('image interne trop petite / vide');
-  return { base64: buf.toString('base64'), engine: `flux-open(${w}x${h}, seed ${seed})` };
+  const perTry = Math.min(12000, timeoutMs);
+  const errors: string[] = [];
+
+  for (const model of IMAGE_MODELS) {
+    const qs = new URLSearchParams({
+      width: String(w), height: String(h), seed: String(seed), referrer: 'paul-ia',
+    });
+    if (model) qs.set('model', model);
+    if (model !== 'flux-realism') qs.set('nologo', 'true');
+    try {
+      const res = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${qs}`, {
+        signal: AbortSignal.timeout(perTry),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}${model ? ` (${model})` : ''}`);
+      const buf = Buffer.from(await res.arrayBuffer());
+      if (buf.length < 1000) throw new Error('image vide');
+      return { base64: buf.toString('base64'), engine: `modèle ouvert ${model || 'flux'}(${w}x${h}, seed ${seed})` };
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+  throw new Error(`moteur image interne indisponible (${errors.join(' | ')})`);
+}
+
+/** Moteur graphique PROCÉDURAL 100 % local : affiche professionnelle générée
+ *  par le code de Paul IA (palette dérivée du prompt, composition géométrique,
+ *  typographie) — aucune dépendance réseau, toujours disponible. */
+export async function proceduralImage(prompt: string, size = '1280x720'): Promise<GeneratedImage> {
+  const [w, h] = size.split('x').map((n) => parseInt(n, 10) || 1280);
+  const sharp = (await import('sharp')).default;
+
+  // Palette déterministe dérivée du prompt
+  let hash = 0;
+  for (let i = 0; i < prompt.length; i++) hash = (hash * 31 + prompt.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  const hue2 = (hue + 60) % 360;
+  const c = (hh: number, l: number) => `hsl(${hh}, 70%, ${l}%)`;
+
+  const words = prompt.replace(/[^\p{L}\p{N}\s-]/gu, ' ').split(/\s+/).filter(Boolean).slice(0, 8);
+  const title = words.slice(0, 5).join(' ').toUpperCase() || 'PAUL IA';
+  const sub = words.slice(5).join(' ') || 'MOTEUR GRAPHIQUE INTERNE';
+
+  const circles = Array.from({ length: 6 }, (_, i) => {
+    const r = ((hash >> (i * 3)) % 30) + 10;
+    const cx = ((hash >> (i * 5)) % w);
+    const cy = ((hash >> (i * 7)) % h);
+    return `<circle cx="${cx}" cy="${cy}" r="${(r / 40) * w}" fill="${c((hue + i * 24) % 360, 50 + i * 4)}" opacity="0.18"/>`;
+  }).join('');
+
+  const fs = Math.round(w / 12);
+  const fs2 = Math.round(w / 30);
+  const svg = Buffer.from(
+    `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="${c(hue, 22)}"/>
+          <stop offset="0.55" stop-color="${c(hue2, 34)}"/>
+          <stop offset="1" stop-color="${c(hue, 14)}"/>
+        </linearGradient>
+        <filter id="blur"><feGaussianBlur stdDeviation="40"/></filter>
+      </defs>
+      <rect width="${w}" height="${h}" fill="url(#bg)"/>
+      <g filter="url(#blur)">${circles}</g>
+      <rect x="0" y="${h * 0.42}" width="${w}" height="${h * 0.2}" fill="#000000" opacity="0.28"/>
+      <rect x="${w * 0.06}" y="${h * 0.455}" width="${w * 0.012}" height="${h * 0.11}" fill="${c(hue2, 62)}"/>
+      <text x="${w * 0.09}" y="${h * 0.53}" font-family="DejaVu Sans, sans-serif" font-weight="bold" font-size="${fs}" fill="#ffffff">${esc(title)}</text>
+      <text x="${w * 0.09}" y="${h * 0.585}" font-family="DejaVu Sans, sans-serif" font-size="${fs2}" fill="${c(hue2, 78)}">${esc(sub)}</text>
+      <text x="${w - w * 0.06}" y="${h - h * 0.04}" text-anchor="end" font-family="DejaVu Sans, sans-serif" font-size="${Math.round(fs2 * 0.8)}" fill="#ffffff" opacity="0.65">Paul IA — moteur graphique interne</text>
+    </svg>`
+  );
+  const buf = await sharp(svg).jpeg({ quality: 90 }).toBuffer();
+  if (buf.length < 1000) throw new Error('image procédurale vide');
+  return { base64: buf.toString('base64'), engine: `moteur graphique procédural interne (${w}x${h}, 100% local)` };
 }
 
 // ── Vidéo (MP4 réel) ───────────────────────────────────────────────────────
@@ -142,10 +210,14 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
           frames.push(f);
         }
       } else {
-        // Repli intégral : frames calculées localement (sharp) — vidéo réelle.
-        engines.push('frames locales sharp (repli intégral)');
-        const local = await localFallbackFrames(opts.prompt, scenes, w, h, tmp);
-        frames.push(...local);
+        // Repli intégral : affiches procédurales locales (sharp) — vidéo réelle.
+        engines.push('frames procédurales locales (repli intégral)');
+        for (let i = 0; i < prompts.length; i++) {
+          const img = await proceduralImage(prompts[i], `${w}x${h}`);
+          const f = path.join(tmp, `p${i}.jpg`);
+          await writeFile(f, Buffer.from(img.base64, 'base64'));
+          frames.push(f);
+        }
       }
     }
 
@@ -194,36 +266,10 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
   }
 }
 
-/** Frames générées localement par sharp (aucun service distant). */
-async function localFallbackFrames(prompt: string, scenes: number, w: number, h: number, tmp: string): Promise<string[]> {
-  const sharp = (await import('sharp')).default;
-  const colors = [
-    ['#0f2027', '#2c5364'], ['#203a43', '#4ca1af'],
-    ['#2c3e50', '#fd746c'], ['#141e30', '#243b55'],
-  ];
-  const files: string[] = [];
-  for (let i = 0; i < scenes; i++) {
-    const [c1, c2] = colors[i % colors.length];
-    const label = escapeXml(prompt.slice(0, 64));
-    const svg = Buffer.from(
-      `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/>
-        </linearGradient></defs>
-        <rect width="${w}" height="${h}" fill="url(#g)"/>
-        <text x="${w / 2}" y="${h / 2 - 20}" text-anchor="middle" font-family="DejaVu Sans" font-size="${Math.round(w / 18)}" fill="#ffffff" opacity="0.92">${label}</text>
-        <text x="${w / 2}" y="${h / 2 + 30}" text-anchor="middle" font-family="DejaVu Sans" font-size="${Math.round(w / 34)}" fill="#ffffff" opacity="0.7">Paul IA — moteur interne — scène ${i + 1}/${scenes}</text>
-      </svg>`
-    );
-    const f = path.join(tmp, `l${i}.jpg`);
-    await sharp(svg).jpeg({ quality: 88 }).toFile(f);
-    files.push(f);
-  }
-  return files;
-}
-
 function escapeXml(s: string): string {
   return s.replace(/[<>&'"]/g, (c) =>
     ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c] as string)
   );
 }
+
+const esc = escapeXml;
