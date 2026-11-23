@@ -32,7 +32,7 @@ const IMAGE_MODELS = ['flux', 'flux-realism', 'turbo', ''];
 export async function internalImage(prompt: string, size = '1280x720', timeoutMs = 45000): Promise<GeneratedImage> {
   const [w, h] = size.split('x').map((n) => parseInt(n, 10) || 1024);
   const seed = Math.floor(Math.random() * 1_000_000);
-  const perTry = Math.min(12000, timeoutMs);
+  const perTry = Math.min(timeoutMs, 20000); // ≥ 20 s par modèle : depuis Vercel, la source ouverte met plus de temps qu'en local
   const errors: string[] = [];
 
   for (const model of IMAGE_MODELS) {
@@ -224,7 +224,7 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
       // réelle n'est obtenable, la vidéo est REFUSÉE (pas de contenu vide).
       const prompts = scenePrompts(opts.prompt, scenes);
       const results = await Promise.allSettled(
-        prompts.map((p) => internalImage(p, `${w}x${h}`, Math.max(15000, budget - (Date.now() - started) - 14000)))
+        prompts.map((p) => internalImage(p, `${w}x${h}`, Math.max(24000, budget - (Date.now() - started) - 12000)))
       );
       const realFrames: GeneratedImage[] = [];
       const failedPrompts: string[] = [];

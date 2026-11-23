@@ -160,10 +160,10 @@ async function internalVideoFallback(
   try {
     const video = await internalVideo({
       prompt: scenario.prompt,
-      scenes: 3,
+      scenes: 2, // 2 scènes réelles suffisent ; garde du temps pour la source d'images, plus lente depuis Vercel
       size: '1280x720',
       secondsPerScene: 3,
-      timeoutMs: 40000,
+      timeoutMs: 44000,
       useCogFallback: true,
     });
     const check = verifyMp4(video.mp4);
@@ -202,7 +202,7 @@ async function keyFrameFallback(
     let base64 = await generateImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720');
     let engine = "moteur image d'appui";
     if (!base64) {
-      const alt = await internalImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720', 20000).catch(() => null);
+      const alt = await internalImage(`${scenario.prompt}, cinematic key frame, highly detailed`, '1280x720', 14000).catch(() => null);
       if (alt) { base64 = alt.base64; engine = 'moteur image ouvert'; }
     }
     if (base64) {
