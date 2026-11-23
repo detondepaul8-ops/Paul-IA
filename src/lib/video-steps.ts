@@ -126,7 +126,7 @@ export async function advanceVideoSteps(taskId: string): Promise<void> {
         });
         const allResolved = locked.scenePromptsList.every((_, i) => locked.sceneMediaIds[i] || (locked.tries[i] || 0) >= MAX_TRIES_PER_SCENE);
         if (allResolved && locked.sceneMediaIds.filter(Boolean).length === 0) {
-          await finishWithKeyFrame(taskId, locked, 'aucune scène obtenable (source d\'images publiques saturée)');
+          await finishWithKeyFrame(taskId, locked, 'aucune scène obtenable (source d\'images publiques saturée)', task.conversationId);
         }
       } else {
         await logEvent(taskId, {
@@ -185,18 +185,37 @@ export async function advanceVideoSteps(taskId: string): Promise<void> {
       summary: locked.description,
       providerDetails: { providers: ['moteur interne'], agents: [], errors: [] },
     });
+    // Livraison PERSISTÉE : la vidéo reste dans l'historique de la
+    // conversation, même après un rechargement de la page.
+    if (task.conversationId) {
+      await db.paul_Message.create({
+        data: {
+          conversationId: task.conversationId,
+          role: 'assistant',
+          content: `Votre vidéo est prête : ${locked.description}`,
+          module: 'video',
+          mediaUrl: stored.url,
+          mediaType: 'video',
+        },
+      });
+    }
   } catch (e) {
     await logEvent(taskId, {
       step: 'assembler',
       label: `Assemblage différé : ${(e as Error).message.slice(0, 140)} — nouvel essai à la prochaine vérification.`,
       status: 'warning',
     });
-    await finishWithKeyFrame(taskId, locked, `assemblage impossible (${(e as Error).message.slice(0, 80)})`);
+    await finishWithKeyFrame(taskId, locked, `assemblage impossible (${(e as Error).message.slice(0, 80)})`, task.conversationId);
   }
 }
 
 /** Échec propre : IMAGE CLÉ réelle du scénario (jamais de vidéo vide). */
-async function finishWithKeyFrame(taskId: string, state: VideoStepState, cause: string): Promise<void> {
+async function finishWithKeyFrame(
+  taskId: string,
+  state: VideoStepState,
+  cause: string,
+  conversationId?: string | null
+): Promise<void> {
   let base64 = await generateImage(`${state.scenarioPrompt}, cinematic key frame, highly detailed`, '1280x720').catch(() => null);
   let engine = "moteur image d'appui";
   if (!base64) {
@@ -218,6 +237,18 @@ async function finishWithKeyFrame(taskId: string, state: VideoStepState, cause: 
         summary: `${state.description} — la vidéo complète n'a pas pu être assemblée cette fois (${cause}) ; aucune vidéo sans contenu réel ne vous est livrée. Réessayez dans quelques instants.`,
         providerDetails: { providers: [engine], agents: [], errors: [cause] },
       });
+      if (conversationId) {
+        await db.paul_Message.create({
+          data: {
+            conversationId,
+            role: 'assistant',
+            content: `La vidéo complète n'a pas pu être assemblée cette fois (${cause}) — voici l'image clé réelle de votre scénario.`,
+            module: 'video',
+            mediaUrl: stored.url,
+            mediaType: 'image',
+          },
+        });
+      }
       return;
     }
   }
@@ -227,4 +258,14 @@ async function finishWithKeyFrame(taskId: string, state: VideoStepState, cause: 
     summary: `${state.description} — ni la vidéo ni l'image clé n'ont pu être produites cette fois (${cause}). Aucun fichier vous est livré : réessayez dans quelques instants.`,
     providerDetails: { providers: ['moteur interne'], agents: [], errors: [cause] },
   });
+  if (conversationId) {
+    await db.paul_Message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: `Ni la vidéo ni l'image clé n'ont pu être produites cette fois (${cause}). Aucun fichier ne vous est livré : réessayez dans quelques instants — je ne livre jamais de vidéo sans contenu réel.`,
+        module: 'video',
+      },
+    });
+  }
 }

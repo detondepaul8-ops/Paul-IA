@@ -61,6 +61,17 @@ export async function POST(request: NextRequest) {
     // Classify intent (texte seul ; une demande d'analyse d'image reste routée vers chat)
     const routeResult = await classifyIntent(textMessage || 'analyse cette image');
 
+    // Routage GARANTI : une demande explicite de création vidéo est toujours
+    // traitée comme vidéo — jamais comme du texte (cause historique de
+    // l'auto-déclaration « assistant textuel » quand le classifieur se trompe).
+    const explicitVideoRequest =
+      /(cr[ée]{1,2}e?|g[ée]n[ée]re[r]?|fais|faire|fabriquer?|produire?|r[ée]aliser?|transformer?|animer?)\s+(moi\s+)?(une?|le|la|ce)\s+(petite?|belle?|vraie|courte|nouvelle)?\s*(vid[ée]o|film|animation|clip)\b/i.test(textMessage || '')
+      || /vid[ée]o\s+(de|du|d['’])/i.test(textMessage || '');
+    if (explicitVideoRequest) {
+      routeResult.taskType = 'video';
+      routeResult.reason = 'Demande de création vidéo explicite : routage vidéo garanti.';
+    }
+
     // ── Demandes complexes : agents parallèles mobilisés par PAUL IA ──
     let taskId: string | null = null;
     let mediaReport = '';

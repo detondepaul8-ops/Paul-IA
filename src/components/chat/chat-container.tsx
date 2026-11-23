@@ -25,6 +25,7 @@ export default function ChatContainer() {
     setConversations,
     setCurrentConversation,
     clearMessages,
+    setActiveTaskId,
   } = useChatStore();
   const [voiceOpen, setVoiceOpen] = useState(false);
 
@@ -66,13 +67,26 @@ export default function ChatContainer() {
               mediaType: (m.mediaType as 'image' | 'video' | 'audio' | null) ?? null,
             }))
           );
+          // Reprise de suivi : une vidéo en préparation (message vidéo sans
+          // média) continue d'avancer — on rattache le panneau à sa tâche.
+          const lastAssistant = [...data.messages].reverse().find((m: { role: string }) => m.role === 'assistant');
+          if (lastAssistant?.module === 'video' && !lastAssistant.mediaUrl) {
+            try {
+              const tRes = await fetch(`/api/tasks?conversationId=${currentConversationId}`, { cache: 'no-store' });
+              if (tRes.ok) {
+                const tData = await tRes.json();
+                const running = (tData.tasks || []).find((t: { status: string }) => t.status === 'running');
+                if (running) setActiveTaskId(running.id);
+              }
+            } catch { /* reprise impossible : la vidéo restera livrée dans l'historique */ }
+          }
         }
       } catch {
         console.error('Failed to load messages');
       }
     }
     loadMessages();
-  }, [currentConversationId, setMessages]);
+  }, [currentConversationId, setMessages, setActiveTaskId]);
 
   const handleClearChat = () => {
     clearMessages();

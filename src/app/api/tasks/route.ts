@@ -39,9 +39,15 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Reprise de suivi : ?conversationId= → tâche vidéo en cours de cette
+    // conversation (le panneau se rattache après un rechargement de page).
+    const conversationId = request.nextUrl.searchParams.get('conversationId') || undefined;
     const tasks = await db.paul_Task.findMany({
+      where: conversationId
+        ? { conversationId, module: 'video', status: 'running' }
+        : undefined,
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: {
