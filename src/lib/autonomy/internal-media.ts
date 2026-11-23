@@ -35,22 +35,33 @@ export async function internalImage(prompt: string, size = '1280x720', timeoutMs
   const perTry = Math.min(timeoutMs, 20000); // ≥ 20 s par modèle : depuis Vercel, la source ouverte met plus de temps qu'en local
   const errors: string[] = [];
 
+  // Constat prod (mesures /api/diag-network depuis Vercel) : seul 'flux'
+  // répond 200 (~5 s) ; 'turbo' et le défaut renvoient 402. Sur 402
+  // (quota de débit par IP), une pause + un seul retry espacé suffit.
   for (const model of IMAGE_MODELS) {
-    const qs = new URLSearchParams({
-      width: String(w), height: String(h), seed: String(seed), referrer: 'paul-ia',
-    });
-    if (model) qs.set('model', model);
-    if (model !== 'flux-realism') qs.set('nologo', 'true');
-    try {
-      const res = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${qs}`, {
-        signal: AbortSignal.timeout(perTry),
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const qs = new URLSearchParams({
+        width: String(w), height: String(h), seed: String(seed), referrer: 'paul-ia',
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}${model ? ` (${model})` : ''}`);
-      const buf = Buffer.from(await res.arrayBuffer());
-      if (buf.length < 1000) throw new Error('image vide');
-      return { base64: buf.toString('base64'), engine: `modèle ouvert ${model || 'flux'}(${w}x${h}, seed ${seed})` };
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : String(e));
+      if (model) qs.set('model', model);
+      if (model !== 'flux-realism') qs.set('nologo', 'true');
+      try {
+        const res = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${qs}`, {
+          signal: AbortSignal.timeout(perTry),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}${model ? ` (${model})` : ''}`);
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length < 1000) throw new Error('image vide');
+        return { base64: buf.toString('base64'), engine: `modèle ouvert ${model || 'flux'}(${w}x${h}, seed ${seed})` };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(msg);
+        if (msg.includes('402') && attempt === 0 && timeoutMs > 8000) {
+          await new Promise((r) => setTimeout(r, 5000)); // fenêtre de quota
+          continue;
+        }
+        break; // autres erreurs : modèle suivant
+      }
     }
   }
   throw new Error(`moteur image interne indisponible (${errors.join(' | ')})`);
@@ -225,14 +236,19 @@ async function encodeVideo(opts: InternalVideoOptions, motion: boolean): Promise
       const prompts = scenePrompts(opts.prompt, scenes);
       const realFrames: GeneratedImage[] = [];
       const failedPrompts: string[] = [];
-      for (const p of prompts) {
+      for (let i = 0; i < prompts.length; i++) {
+        const p = prompts[i];
         const remaining = budget - (Date.now() - started);
         if (remaining < 12000) break;
         try {
           const img = await internalImage(p, `${w}x${h}`, Math.min(16000, Math.max(12000, remaining - 12000)));
           realFrames.push(img);
+          // Respiration obligatoire : le quota de débit par IP refuserait
+          // la requête suivante si elle part immédiatement.
+          await new Promise((r) => setTimeout(r, 6000));
         } catch {
           failedPrompts.push(p);
+          await new Promise((r) => setTimeout(r, 3000));
         }
       }
       if (realFrames.length > 0) engines.push(`moteur image ouvert (${realFrames.length}/${scenes} scènes)`);
